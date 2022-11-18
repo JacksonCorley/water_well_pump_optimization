@@ -1,0 +1,15 @@
+numpy
+pandas==1.2.4
+scipy
+scikit-learn
+statsmodels
+dash
+cvxpy
+plotly
+gunicorn
+flask
+dash-bootstrap-components
+dash-core-components
+dash-html-components
+dash-renderer
+dash-table
