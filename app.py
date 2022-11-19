@@ -341,10 +341,10 @@ def plot_forecast(dataframe, days_before, month, day, hour_inp, section):
     plot_df_unpivoted = plot_df.melt(id_vars=['level_0',"trend_type"], var_name='Trend', value_name="Value")
     pu_forecast_start_index = plot_df_unpivoted[(plot_df_unpivoted["level_0"]==0) & (plot_df_unpivoted["trend_type"]=="forecast")& (plot_df_unpivoted["Trend"]==section+"_power_usage")].index[0]
     flow_forecast_start_index = plot_df_unpivoted[(plot_df_unpivoted["level_0"]==0) & (plot_df_unpivoted["trend_type"]=="forecast")& (plot_df_unpivoted["Trend"]==section+"_total_flow")].index[0]
-    power_x = flow_forecast_start_index + hour_inp
-    power_y = plot_df_unpivoted.at[pu_forecast_start_index + hour_inp,"Value"]
-    flow_x = flow_forecast_start_index + hour_inp
-    flow_y = plot_df_unpivoted.at[flow_forecast_start_index + hour_inp,"Value"]
+    power_x = flow_forecast_start_index + hour_inp - 2
+    power_y = plot_df_unpivoted.at[pu_forecast_start_index + hour_inp - 1,"Value"]
+    flow_x = flow_forecast_start_index + hour_inp - 2
+    flow_y = plot_df_unpivoted.at[flow_forecast_start_index + hour_inp - 1,"Value"]
     fig = make_subplots(specs=[[{"secondary_y": True}]])
     section_colors = {"north":"red","south":"lightskyblue"}
     trend_colors = {0:"black",1:"blue",2:"orange",3:"gray"}
@@ -361,7 +361,7 @@ def plot_forecast(dataframe, days_before, month, day, hour_inp, section):
         for trend_type in ["historical","forecast"]:
             i_plot_df = i_df[i_df["trend_type"] == trend_type]
             if "power_usage" in var:
-                color = trend_colors[i]
+                color = trend_colors[0]
             else:
                 color = section_colors[section]
             fig.add_trace(go.Scatter(mode="lines",
@@ -380,19 +380,21 @@ def plot_forecast(dataframe, days_before, month, day, hour_inp, section):
                                      #marker_size=list(South_df["Online"])))
             last_index = i_plot_df["level_0"].max()
             
-    #fig.add_trace(go.Scatter(mode="markers",
-    #                         x=[power_x],
-    #                         y=[power_y],
-    #                         marker_line_color="black",
-    #                         marker_color="red",
-    #                         marker_size = 5))
-    #fig.add_trace(go.Scatter(mode="markers",
-    #                         x=[flow_x],
-    #                        y=[flow_y],
-    #                         marker_line_color="black",
-    #                         marker_color="red",
-    #                        marker_size = 5))
-    #                         #marker_line_width=list([round(i/8) for i in South_df["Online"]]),
+    fig.add_trace(go.Scatter(mode="markers",
+                             x=[power_x],
+                             y=[power_y],
+                             marker_line_color="black",
+                             marker_color=trend_colors[0],
+                             marker_size = 6,
+                             marker_line_width=1),secondary_y = True)
+    fig.add_trace(go.Scatter(mode="markers",
+                             x=[flow_x],
+                             y=[flow_y],
+                             marker_line_color="black",
+                             marker_color=section_colors[section],
+                             marker_size = 6,
+                             marker_line_width=1))
+                             #marker_line_width=list([round(i/8) for i in South_df["Online"]]),
                              #marker_size=list(South_df["Online"]))))
     fig.update_layout(showlegend=False,
         yaxis2=dict(range=[0,y_2_max], showgrid=False, zeroline=False, visible = False),
@@ -406,8 +408,11 @@ def plot_forecast(dataframe, days_before, month, day, hour_inp, section):
         plot_bgcolor="#fafbfc"
         )
     #fig.write_html(section+"_"+str(month)+"_"+str(day)+"_"+str(hour)+"_forecast_plot.html")
-    forecast_power_sum = powersum - start_power_sum
-    return fig, forecast_power_sum
+    if hour_inp == 0:
+        forecast_power_sum = powersum - start_power_sum
+    else:
+        forecast_power_sum = power_y - start_power_sum
+    return fig, forecast_power_sum, flow_y
 
 #plot(fig)
 
@@ -421,10 +426,11 @@ def plot_forecast(dataframe, days_before, month, day, hour_inp, section):
               Output(component_id='south_forecast', component_property='figure'),
               Output(component_id='south-power-pred', component_property='value'),],
               [Input('update_data','n_clicks'),
-               State('month_slider','value'),
-               State('day_slider','value')],
+               Input('hour_slider','value'),
+               State('day_slider','value'),
+               State('month_slider','value'),],
               prevent_initial_call=False)
-def gen_inl_graph(clicks, month_val, day):
+def gen_inl_graph(clicks, hour_inp, day, month_val):
     print(month_val)
     
     fig = generate_geo_plot(locations_df,testing_on_wells)
@@ -442,11 +448,11 @@ def gen_inl_graph(clicks, month_val, day):
             columns=[{'name': i, 'id': i} for i in south_data.columns],
             editable=False)])]
     
-    north_forc_fig, north_power = plot_forecast(data_df,3,month_val, day, 0, "north")
+    north_forc_fig, north_power, predicted_north_flow = plot_forecast(data_df,3,month_val, day, hour_inp, "north")
     
-    south_forc_fig, south_power = plot_forecast(data_df,3,month_val, day, 0, "south")
+    south_forc_fig, south_power, predicted_south_flow = plot_forecast(data_df,3,month_val, day, hour_inp, "south")
     
-    return fig, north_df, south_df, predicted_north, predicted_south, north_forc_fig, round(north_power,1), south_forc_fig, round(south_power,1)
+    return fig, north_df, south_df, predicted_north_flow, predicted_south_flow, north_forc_fig, round(north_power,1), south_forc_fig, round(south_power,1)
 
 
 @app.callback([Output(component_id='day_slider', component_property='max'),
