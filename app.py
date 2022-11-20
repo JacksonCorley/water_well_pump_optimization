@@ -240,9 +240,8 @@ app.layout = html.Div(cards)
 
 #%% Make helper functions
 
-def optimize_pumps():
-    pass
 
+##place holder for optimization
 def update_optimization(df, predicted_north,predicted_south, hour):
     ###UPDATE WITH ACTUAL OPTIMIZATION
     north_pmps = []
@@ -252,7 +251,6 @@ def update_optimization(df, predicted_north,predicted_south, hour):
     south_q = 0
     south_usage = 0
     div = hour % 2 + 1
-    print("div = ", div)
     for r, section in enumerate(list(set(df["Section"]))):
         i_data = df[df["Section"] == section]
         for i, ind in enumerate(list(i_data["Location"].index)):
@@ -274,13 +272,14 @@ def update_optimization(df, predicted_north,predicted_south, hour):
                             break
     return north_pmps + south_pmps, north_q, south_q, north_usage, south_usage
 
+## updates number of days in month based on month selection
 def update_days(month):
     days_dict = {}
     for i in range(month):
         days_dict[i+1] = {'label':str(i+1), 'style':{'font-size':'70%'}}
     return days_dict
 
-
+#function to update geographics plot of online pumps
 def generate_geo_plot(Dataframe, on_predictions):
     on_wls=[]
     for wll in Dataframe["Location"]:
@@ -333,6 +332,7 @@ def generate_geo_plot(Dataframe, on_predictions):
     
     return fig
 
+#function to update South and North tables based on a list output from from pump well predictiosn function
 def update_table(Dataframe, on_predictions):
     on_wls=[]
     for wll in Dataframe["Location"]:
@@ -349,6 +349,8 @@ def update_table(Dataframe, on_predictions):
     
     return North_df[desirable_cols], South_df[desirable_cols]
     
+
+#function to update South and North forecasts and plots
 def plot_forecast(dataframe, days_before, month, day, hour_inp, section):
     ##UPDATE WITH ACTUAL FORECAST DATA
     strt_dataframe = dataframe[(dataframe["month"] == month) & (dataframe["hour"] == 0) & (dataframe["day"] == day)].copy()
@@ -451,6 +453,7 @@ def plot_forecast(dataframe, days_before, month, day, hour_inp, section):
 
 ## Define interactions with the User interface.
 
+## main callback that is run whenever update_data in lciskced or hour slider is changed.
 @app.callback([Output(component_id='well-operations-map', component_property='figure'),
               Output(component_id='north_datatable', component_property='children'),
               Output(component_id='south_datatable', component_property='children'),
@@ -466,24 +469,30 @@ def plot_forecast(dataframe, days_before, month, day, hour_inp, section):
                State('month_slider','value'),],
               prevent_initial_call=False)
 def gen_inl_graph(clicks, hour_inp, day, month_val):
-    print(month_val)
     
+    #updates north forecast
     north_forc_fig, north_power, predicted_north_flow = plot_forecast(data_df,3,month_val, day, hour_inp, "north")
     
+    #updates south forecast
     south_forc_fig, south_power, predicted_south_flow = plot_forecast(data_df,3,month_val, day, hour_inp, "south")
     
+    #finds online pumps from optimization
     online_wells, north_q, south_q, north_usage, south_usage = update_optimization(init_df,predicted_north_flow, predicted_south_flow, hour_inp)
+    
+    #updates greographic plot based on online wells
     fig = generate_geo_plot(locations_df,online_wells)
+    
+    #gets north and south data to be displayed in the prediction tables.
     north_data, south_data = update_table(locations_df,online_wells)
     
-    
+    #formats data to be displayed in north table in user interface.
     north_df = [html.Div([
         dash_table.DataTable(id = "north_on_pumps",
             data=north_data.to_dict('records'),
             columns=[{'name': i, 'id': i} for i in north_data.columns],
             editable=False)])]
     
-    
+    #formats data to be displayed in south table in user interface.
     south_df = [html.Div([
         dash_table.DataTable(id = "south_on_pump",
             data=south_data.to_dict('records'),
@@ -493,6 +502,7 @@ def gen_inl_graph(clicks, hour_inp, day, month_val):
     return fig, north_df, south_df, round(predicted_north_flow,1), round(predicted_south_flow,1), north_forc_fig, round(north_power,1), south_forc_fig, round(south_power,1)
 
 
+#updates number of days in month based on selection fro month.
 @app.callback([Output(component_id='day_slider', component_property='max'),
               Output(component_id='day_slider', component_property='marks')],
               [Input(component_id='month_slider', component_property='value')],
