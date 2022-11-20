@@ -41,30 +41,36 @@ raw_symbols = SymbolValidator().values
 data_df = pd.read_csv("Final_Data_hourly.csv")
 data_df['DateTime'] = pd.to_datetime(data_df['DateTime'])
 
+
 ## import datset used to summarize and perform calcs on data_df
 locations_df = pd.read_csv("Well_Summarys.csv")
 symbol_dict = {"PMP":200,"TNK":201,"VLV":26,"PP":35,"BPS":224}
 locations_df["symbol"] = [symbol_dict[p] for p in [i.split("_")[0] for i in locations_df["Location"]]]
+init_df = pd.read_csv("Well_Summarys.csv")
 
-
+#make dictionary for days in a month and input to slider
 months_dict = {}
 month_key = {1:["Jan",31],2:["Feb",29],3:["Mar",31],4:["Apr",30],5:["May",31],6:["Jun",30],7:["Jul",31],8:["Aug",31],9:["Sep",30],10:["Oct",31],11:["Nov",30],12:["Dec",31]}
 for i in range(12):
     months_dict[i+1] = {'label':month_key[i+1][0], 'style':{'font-size':'70%'}}
 
+#make dictionary for days slider
 days_dict = {}
 for i in range(month_key[1][1]):
     days_dict[i+1] = {'label':str(i+1), 'style':{'font-size':'70%'}}
 
+#make dictionary for days slider
 hours_dict = {}
 for i in range(48):
     hours_dict[i+1] = {'label':str(i+1), 'style':{'font-size':'70%'}}
 
 #%% testing vairables - need to be updated.
-testing_on_wells = ["PMP_6","PMP_1","PMP_31","PMP_15","PMP_24","PMP_15","PMP_16"]
-predicted_north = 15265
-predicted_south = 12517
+#testing_on_wells = ["PMP_6","PMP_1","PMP_31","PMP_15","PMP_24","PMP_15","PMP_16"]
+#predicted_north = 15265
+#predicted_south = 12517    
+    
 
+#%% make user interface items.
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.SLATE])
 server = app.server
 
@@ -232,12 +238,41 @@ cards = html.Div([
 
 app.layout = html.Div(cards)
 
-
-def forecast_flow():
-    pass
+#%% Make helper functions
 
 def optimize_pumps():
     pass
+
+def update_optimization(df, predicted_north,predicted_south, hour):
+    ###UPDATE WITH ACTUAL OPTIMIZATION
+    north_pmps = []
+    south_pmps =[]
+    north_q = 0
+    north_usage = 0
+    south_q = 0
+    south_usage = 0
+    div = hour % 2 + 1
+    print("div = ", div)
+    for r, section in enumerate(list(set(df["Section"]))):
+        i_data = df[df["Section"] == section]
+        for i, ind in enumerate(list(i_data["Location"].index)):
+            if section.lower() == "north":
+                if i % div == 0:
+                    if i_data.at[ind,"Average_Flow(gpm)"] > 0:
+                        north_q += i_data.at[ind,"Average_Flow(gpm)"]
+                        north_usage += i_data.at[ind,"Average_Power_Usage(kW-Hr)"]
+                        north_pmps.append(i_data.at[ind,"Location"])
+                        if (north_q > predicted_north*0.85) & (north_q < predicted_north*1.15):
+                            break
+            elif section.lower() == "south":
+                if i % div == 0:
+                    if i_data.at[ind,"Average_Flow(gpm)"] > 0:
+                        south_q += i_data.at[ind,"Average_Flow(gpm)"]
+                        south_usage += i_data.at[ind,"Average_Power_Usage(kW-Hr)"]
+                        south_pmps.append(i_data.at[ind,"Location"])
+                        if (south_q > predicted_south*0.85) & (south_q < predicted_south*1.15):
+                            break
+    return north_pmps + south_pmps, north_q, south_q, north_usage, south_usage
 
 def update_days(month):
     days_dict = {}
@@ -245,9 +280,6 @@ def update_days(month):
         days_dict[i+1] = {'label':str(i+1), 'style':{'font-size':'70%'}}
     return days_dict
 
-def generate_forecast_plot(forecast_ts_df):
-    
-    pass
 
 def generate_geo_plot(Dataframe, on_predictions):
     on_wls=[]
@@ -318,6 +350,7 @@ def update_table(Dataframe, on_predictions):
     return North_df[desirable_cols], South_df[desirable_cols]
     
 def plot_forecast(dataframe, days_before, month, day, hour_inp, section):
+    ##UPDATE WITH ACTUAL FORECAST DATA
     strt_dataframe = dataframe[(dataframe["month"] == month) & (dataframe["hour"] == 0) & (dataframe["day"] == day)].copy()
     start_index = strt_dataframe.index.max() - (days_before * 24)
     end_index = strt_dataframe.index.max() + (48)
@@ -416,6 +449,8 @@ def plot_forecast(dataframe, days_before, month, day, hour_inp, section):
 
 #plot(fig)
 
+## Define interactions with the User interface.
+
 @app.callback([Output(component_id='well-operations-map', component_property='figure'),
               Output(component_id='north_datatable', component_property='children'),
               Output(component_id='south_datatable', component_property='children'),
@@ -433,8 +468,14 @@ def plot_forecast(dataframe, days_before, month, day, hour_inp, section):
 def gen_inl_graph(clicks, hour_inp, day, month_val):
     print(month_val)
     
-    fig = generate_geo_plot(locations_df,testing_on_wells)
-    north_data, south_data = update_table(locations_df,testing_on_wells)
+    north_forc_fig, north_power, predicted_north_flow = plot_forecast(data_df,3,month_val, day, hour_inp, "north")
+    
+    south_forc_fig, south_power, predicted_south_flow = plot_forecast(data_df,3,month_val, day, hour_inp, "south")
+    
+    online_wells, north_q, south_q, north_usage, south_usage = update_optimization(init_df,predicted_north_flow, predicted_south_flow, hour_inp)
+    fig = generate_geo_plot(locations_df,online_wells)
+    north_data, south_data = update_table(locations_df,online_wells)
+    
     
     north_df = [html.Div([
         dash_table.DataTable(id = "north_on_pumps",
@@ -442,17 +483,14 @@ def gen_inl_graph(clicks, hour_inp, day, month_val):
             columns=[{'name': i, 'id': i} for i in north_data.columns],
             editable=False)])]
     
+    
     south_df = [html.Div([
         dash_table.DataTable(id = "south_on_pump",
             data=south_data.to_dict('records'),
             columns=[{'name': i, 'id': i} for i in south_data.columns],
             editable=False)])]
     
-    north_forc_fig, north_power, predicted_north_flow = plot_forecast(data_df,3,month_val, day, hour_inp, "north")
-    
-    south_forc_fig, south_power, predicted_south_flow = plot_forecast(data_df,3,month_val, day, hour_inp, "south")
-    
-    return fig, north_df, south_df, predicted_north_flow, predicted_south_flow, north_forc_fig, round(north_power,1), south_forc_fig, round(south_power,1)
+    return fig, north_df, south_df, round(predicted_north_flow,1), round(predicted_south_flow,1), north_forc_fig, round(north_power,1), south_forc_fig, round(south_power,1)
 
 
 @app.callback([Output(component_id='day_slider', component_property='max'),
