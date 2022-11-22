@@ -42,7 +42,7 @@ raw_symbols = SymbolValidator().values
 # %% Read in Data
 
 ## read in combined dataset and convert datetime column ot datetime
-data_df = pd.read_csv("Final_Data_hourly.csv")
+data_df = pd.read_csv("Final_Data_hourly_clean.csv")
 data_df['DateTime'] = pd.to_datetime(data_df['DateTime'])
 
 
