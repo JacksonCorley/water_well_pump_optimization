@@ -26,6 +26,9 @@ from plotly.subplots import make_subplots
 #import shapely
 #from shapely.geometry import LineString, Point
 
+# forecasting function
+from forecast.forecast import naive_mstl
+
 
 ### user inputs
 from plotly.validators.scatter.marker import SymbolValidator

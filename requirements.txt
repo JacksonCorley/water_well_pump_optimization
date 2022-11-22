@@ -2,7 +2,7 @@ numpy
 pandas==1.2.4
 scipy
 scikit-learn
-statsmodels
+git+https://github.com/statsmodels/statsmodels
 dash
 cvxpy
 plotly
