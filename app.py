@@ -27,7 +27,8 @@ from plotly.subplots import make_subplots
 #from shapely.geometry import LineString, Point
 
 # forecasting function
-from forecast.forecast import naive_mstl
+#from forecast.forecast import naive_mstl
+from forecast import forecast 
 
 
 ### user inputs
