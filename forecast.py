@@ -74,7 +74,7 @@ class forecast:
         north_fit = north_model.fit(disp=0)
 
         south_model = ETSModel(
-            train['north_total_flow'],
+            train['south_total_flow'],
             error="add",
             trend="add",
             seasonal="add",
