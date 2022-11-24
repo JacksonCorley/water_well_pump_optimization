@@ -19,10 +19,11 @@ from dash.dependencies import Output, Input, State
 import dash_table
 import dash_bootstrap_components as dbc
 #import pandas as pd
-import plotly.express as px
-import sqlite3
+from dash.exceptions import PreventUpdate
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from datetime import date
+from datetime import timedelta
 #import shapely
 #from shapely.geometry import LineString, Point
 
@@ -42,15 +43,14 @@ raw_symbols = SymbolValidator().values
 # %% Read in Data
 
 ## read in combined dataset and convert datetime column ot datetime
-data_df = pd.read_csv("Final_Data_hourly_clean.csv")
-data_df['DateTime'] = pd.to_datetime(data_df['DateTime'])
+final_data = pd.read_csv("Final_Data_hourly_clean.csv")
+#data_df['DateTime'] = pd.to_datetime(data_df['DateTime'])
 
 
 ## import datset used to summarize and perform calcs on data_df
 locations_df = pd.read_csv("Well_Summarys.csv")
 symbol_dict = {"PMP":200,"TNK":201,"VLV":26,"PP":35,"BPS":224}
 locations_df["symbol"] = [symbol_dict[p] for p in [i.split("_")[0] for i in locations_df["Location"]]]
-init_df = pd.read_csv("Well_Summarys.csv")
 
 #make dictionary for days in a month and input to slider
 months_dict = {}
@@ -64,9 +64,14 @@ for i in range(month_key[1][1]):
     days_dict[i+1] = {'label':str(i+1), 'style':{'font-size':'70%'}}
 
 #make dictionary for days slider
-hours_dict = {}
-for i in range(48):
-    hours_dict[i+1] = {'label':str(i+1), 'style':{'font-size':'70%'}}
+def make_hours_dict(hours):
+    hours_dict = {}
+    for i in range(48):
+        if i % 2 ==0:
+            hours_dict[i+1] = {'label':str(i), 'style':{'font-size':'50%'}}
+        else:
+            hours_dict[i+1] = {'label':"", 'style':{'font-size':'50%'}}
+    return hours_dict
 
 #%% testing vairables - need to be updated.
 #testing_on_wells = ["PMP_6","PMP_1","PMP_31","PMP_15","PMP_24","PMP_15","PMP_16"]
@@ -92,36 +97,29 @@ Title_Card = dbc.Card(
 Time_Selection_Card = dbc.Card(
     dbc.CardBody(
         [
+# =============================================================================
+#             dbc.Row([
+#                 dbc.Col([html.H5("Time Inputs", className="card-title")]),
+#                 dbc.Col(html.Button('Update Pump Projections', id='update_data', n_clicks=0)),
+#                 dbc.Col(dcc.Store(id='table-output')),
+#                 ]),
+# =============================================================================
             dbc.Row([
-                dbc.Col([html.H5("Time Inputs", className="card-title")]),
-                dbc.Col(html.Button('Update Pump Projections', id='update_data', n_clicks=0)),
+                dbc.Col([html.P("Date Range Selection",className="card-text")]),
+                dbc.Col(dcc.Store(id='table-output')),
                 ]),
             dbc.Row([
-                dbc.Col([html.P("Month",className="card-text")])
-                ]),
-            dbc.Row([
-                dcc.Slider(
-                    id='month_slider',
-                    min= 1,
-                    max= 12,
-                    step = 1,
-                    value = 1,
-                    marks = months_dict,
-                    tooltip = {'always_visible': False,'placement':'bottom'},
-                ),]),
-            dbc.Row([
-                dbc.Col([html.P("Day",className="card-text")])
-                ]),
-            dbc.Row([
-                dcc.Slider(
-                    id='day_slider',
-                    min= 1,
-                    max= 31,
-                    step = 1,
-                    value = 1,
-                    marks = days_dict,
-                    tooltip = {'always_visible': False,'placement':'bottom'},
-                ),]),            
+                dbc.Col(dcc.DatePickerRange(
+                    id='date-picker-range',
+                    min_date_allowed=date(2017, 7,7),
+                    max_date_allowed=date(2019, 7, 7),
+                    initial_visible_month=date(2018, 4, 14),
+                    end_date=date(2018, 4, 16))),
+                dbc.Col(dbc.Button(id='update_data',
+                           children=[html.I(className="fa fa-download mr-1"), 'Update Pump Projections'],
+                           color="info",
+                           className="mt-1", ),)
+                ]),            
             dbc.Row([
                 dbc.Col([html.P("Hour",className="card-text")])
                 ]),
@@ -132,7 +130,7 @@ Time_Selection_Card = dbc.Card(
                     max= 48,
                     step = 1,
                     value = 1,
-                    marks = hours_dict,
+                    marks = make_hours_dict(48),
                     tooltip = {'always_visible': False,'placement':'bottom'},
                 ),]),             
             ]
@@ -148,7 +146,7 @@ South_Pred_Card = dbc.Card(
                         ]),
                     dbc.Row([
                         dbc.Col([html.P("Flow Predictions (gpm)",className="card-text")]),
-                        dbc.Col([html.P("48 - Hour Power Usage (kW-hr)",className="card-text")]),
+                        dbc.Col([html.P("Total Power Usage (kW-hr)",className="card-text")]),
                         ]),
                     dbc.Row([
                         dbc.Col([dcc.Input(id="north-flow-pred", type="number", value = 0, disabled = True, style={'width':'60%'})]),
@@ -173,7 +171,7 @@ North_Pred_Card = dbc.Card(
                         ]),
                     dbc.Row([
                         dbc.Col([html.P("Flow Predictions (gpm)",className="card-text")]),
-                        dbc.Col([html.P("48 - Hour Power Usage (kW-hr)",className="card-text")]),
+                        dbc.Col([html.P("Total Power Usage (kW-hr)",className="card-text")]),
                         ]),
                     dbc.Row([
                         dbc.Col([dcc.Input(id="south-flow-pred", type="number", value = 0, disabled =True, style={'width':'60%'})]),
@@ -202,18 +200,34 @@ well_map_Card = dbc.Card(
         )
 
 
-well_table_Card = dbc.Card(
+north_wells_table_Card = dbc.Card(
             dbc.CardBody(
                 [
                     dbc.Row([
-                        dbc.Col([html.H5("Well Operations Table", className="card-title")]),
+                        dbc.Col([html.H5("North Well Operations Table", className="card-title")]),
                         ]),
                     dbc.Row([
                         dbc.Col([html.P("North Section", className="card-text")]),
-                        dbc.Col([html.P("South Section", className="card-text")]),
                         ]),
                     dbc.Row([
                         dbc.Col([html.Div(id='north_datatable')]),
+                        ]),
+                    #dcc.Input(id="min-SCFM", type="number", value = 0, disabled = True),
+                    #dcc.Input(id="max-SCFM", type="number", value = 0, disabled = True),
+                ]
+            )
+        )
+
+south_wells_table_Card = dbc.Card(
+            dbc.CardBody(
+                [
+                    dbc.Row([
+                        dbc.Col([html.H5("South Well Operations Table", className="card-title")]),
+                        ]),
+                    dbc.Row([
+                        dbc.Col([html.P("South Section", className="card-text")]),
+                        ]),
+                    dbc.Row([
                         dbc.Col([html.Div(id='south_datatable')]),
                         ]),
                     #dcc.Input(id="min-SCFM", type="number", value = 0, disabled = True),
@@ -222,6 +236,20 @@ well_table_Card = dbc.Card(
             )
         )
 
+data_table_card = dbc.Card(
+            dbc.CardBody(
+                [
+                    dbc.Row([
+                        dbc.Col([html.H5("Prediction Data", className="card-title")]),
+                        ]),
+                    dbc.Row([
+                        dbc.Col([html.Div(id='preds-table')]),
+                        ]),
+                    #dcc.Input(id="min-SCFM", type="number", value = 0, disabled = True),
+                    #dcc.Input(id="max-SCFM", type="number", value = 0, disabled = True),
+                ]
+            )
+        )
 
 
 cards = html.Div([
@@ -229,13 +257,17 @@ cards = html.Div([
         dbc.Col(Title_Card, width = 12),
         ]),
      dbc.Row([
-         dbc.Col(Time_Selection_Card, width = 6),
-         dbc.Col(South_Pred_Card, width = 3),
-         dbc.Col(North_Pred_Card, width = 3),
+         dbc.Col(Time_Selection_Card, width = 4),
+         dbc.Col(South_Pred_Card, width = 4),
+         dbc.Col(North_Pred_Card, width = 4),
          ]),
      dbc.Row([
-         dbc.Col(well_map_Card, width = 6),
-         dbc.Col(well_table_Card, width = 6),
+         dbc.Col(well_map_Card, width = 4),
+         dbc.Col(north_wells_table_Card, width = 4),
+         dbc.Col(south_wells_table_Card, width = 4),
+         ]),
+     dbc.Row([
+         dbc.Col(data_table_card, width = 12),
          ])
      ])
 
@@ -246,7 +278,7 @@ app.layout = html.Div(cards)
 
 
 ##place holder for optimization
-def update_optimization(df, predicted_north,predicted_south, hour):
+def update_optimization(df, predicted_north, predicted_south, hour):
     ###UPDATE WITH ACTUAL OPTIMIZATION
     north_pmps = []
     south_pmps =[]
@@ -329,8 +361,9 @@ def generate_geo_plot(Dataframe, on_predictions):
         x=0.01),
         xaxis=dict(showgrid=False, zeroline=False, visible= False),  # numbers below),
         yaxis=dict(showgrid=False, zeroline=False, visible= False),
-        margin=dict(l=10, r=10, t=30, b=10),
-        plot_bgcolor="#e3fae5"
+        margin=dict(l=2, r=2, t=30, b=2),
+        plot_bgcolor="#e3fae5",
+        height=200,
         #paper_bgcolor="#d0f7d2"
         )
     
@@ -346,177 +379,248 @@ def update_table(Dataframe, on_predictions):
             on_wls.append(0)
             
     Dataframe["Online"] = on_wls
-    Dataframe.columns = ['Location', 'Section', 'X', 'Y', 'Group', 'Static (ft)','Specfic Capacity (gpm/ft)', 'Flow(gpm)', 'Average_Press(psi)','Power_Usage(kW-Hr)', 'symbol', 'Online']
+    Dataframe.columns = ['Location', 'Section', 'X', 'Y', 'Group', 'Static (ft)','Specfic Capacity (gpm/ft)', 'Average_Flow(gpm)', 'Average_Press(psi)','Average_Power_Usage(kW-Hr)', 'symbol', 'Online']
     North_df = Dataframe[(Dataframe["Section"]=="North") & (Dataframe["Online"]==1)]
     South_df = Dataframe[(Dataframe["Section"]=="South") & (Dataframe["Online"]==1)]
-    desirable_cols = ["Location","Flow(gpm)","Power_Usage(kW-Hr)"]
+    desirable_cols = ["Location","Average_Flow(gpm)","Average_Power_Usage(kW-Hr)"]
     
     return North_df[desirable_cols], South_df[desirable_cols]
     
 
 #function to update South and North forecasts and plots
-def plot_forecast(dataframe, days_before, month, day, hour_inp, section):
+def plot_forecast(dataframe, hour_inp, section):
     ##UPDATE WITH ACTUAL FORECAST DATA
-    strt_dataframe = dataframe[(dataframe["month"] == month) & (dataframe["hour"] == 0) & (dataframe["day"] == day)].copy()
-    start_index = strt_dataframe.index.max() - (days_before * 24)
-    end_index = strt_dataframe.index.max() + (48)
     section = section.lower()
-    hist_df = dataframe[start_index:strt_dataframe.index.max()][[section+"_total_flow",section+"_total_power_usage"]].reset_index().reset_index()[["level_0", section+"_total_flow",section+"_total_power_usage"]]
-    hist_df["trend_type"] = "historical"
-    forecast_df = dataframe[strt_dataframe.index.max():end_index][[section+"_total_flow",section+"_total_power_usage"]].reset_index().reset_index()[["level_0", section+"_total_flow",section+"_total_power_usage"]]
-    forecast_df["trend_type"] = "forecast"
-    plot_df = hist_df.append(forecast_df)
-    plot_df=plot_df.reset_index()
-    power_cum = []
-    powersum = 0
-    for i, value in enumerate(plot_df[section+"_total_power_usage"]):
-        powersum = powersum + value
-        power_cum.append(powersum)
-        if plot_df.at[i,"level_0"] == 0:
-            start_power_sum = powersum
-    plot_df = plot_df.drop(columns=[section+"_total_power_usage"])
-    plot_df[section+"_power_usage"] = power_cum
-    plot_df = plot_df.drop(columns=["index"])
-    plot_df_unpivoted = plot_df.melt(id_vars=['level_0',"trend_type"], var_name='Trend', value_name="Value")
-    pu_forecast_start_index = plot_df_unpivoted[(plot_df_unpivoted["level_0"]==0) & (plot_df_unpivoted["trend_type"]=="forecast")& (plot_df_unpivoted["Trend"]==section+"_power_usage")].index[0]
-    flow_forecast_start_index = plot_df_unpivoted[(plot_df_unpivoted["level_0"]==0) & (plot_df_unpivoted["trend_type"]=="forecast")& (plot_df_unpivoted["Trend"]==section+"_total_flow")].index[0]
-    power_x = flow_forecast_start_index + hour_inp - 2
-    power_y = plot_df_unpivoted.at[pu_forecast_start_index + hour_inp - 1,"Value"]
-    flow_x = flow_forecast_start_index + hour_inp - 2
-    flow_y = plot_df_unpivoted.at[flow_forecast_start_index + hour_inp - 1,"Value"]
-    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    plot_df = dataframe.copy()
+    # =============================================================================
+    # power_cum = []
+    # powersum = 0
+    # for i, value in enumerate(plot_df[section+"_total_power_usage"]):
+    #     powersum = powersum + value
+    #     power_cum.append(powersum)
+    #     if plot_df.at[i,"level_0"] == 0:
+    #         start_power_sum = powersum
+    # plot_df = plot_df.drop(columns=[section+"_total_power_usage"])
+    # plot_df[section+"_power_usage"] = power_cum
+    # =============================================================================
+
+    start_index = plot_df.index[0]
+    #power_x = start_index + timedelta(hour_inp)
+    #power_y = plot_df.at[start_index + hours,section+"_pred"]
+    flow_x = start_index + timedelta(hours = hour_inp)
+    flow_pred = plot_df.at[start_index + timedelta(hours = hour_inp),section+"_pred"]
+    flow_hist = plot_df.at[start_index + timedelta(hours = hour_inp),section+"_total_flow"]
+    fig = make_subplots(specs=[[{"secondary_y": False}]])
     section_colors = {"north":"red","south":"lightskyblue"}
     trend_colors = {0:"black",1:"blue",2:"orange",3:"gray"}
     trend_opac = {"historical":0.5,"forecast":1}
-    for i, var in enumerate(list(set(plot_df_unpivoted["Trend"]))):
-        i_df = plot_df_unpivoted[plot_df_unpivoted["Trend"] == var]
-        last_index = 0
+    y_1_max=0
+    for i, var in enumerate([i for i in plot_df.columns if section in i]):
+        if "pred" in var:
+            trend_type = "forecast"
+            flow_y = flow_pred
+        else:
+            trend_type = "historical"
+            flow_y = flow_hist
         if "power_usage" in var:
             secondary_bool = True
-            y_2_max = i_df["Value"].max()*1.7
+            y_2_max = plot_df[var].max()*1.7
+            color = trend_colors[0]
         else:
             secondary_bool = False
-            y_1_max = i_df["Value"].max()*1.1
-        for trend_type in ["historical","forecast"]:
-            i_plot_df = i_df[i_df["trend_type"] == trend_type]
-            if "power_usage" in var:
-                color = trend_colors[0]
-            else:
-                color = section_colors[section]
-            fig.add_trace(go.Scatter(mode="lines",
-                                     x=list([row + last_index for row in i_plot_df["level_0"]]),
-                                     y=list(i_plot_df["Value"]),
-                                     name = var + "-" + trend_type,
-                                     hovertemplate =
-                                     '<b>Hour</b>: %{x}' +
-                                     '<br><b>Value</b>: %{y:.2f}' +
-                                     '<br><b>Trend Type</b>: %{text}',
-                                     text = [row for row in i_plot_df["trend_type"]],
-                                     marker_line_color=color,
-                                     marker_color=color,
-                                     opacity = trend_opac[trend_type]),secondary_y = secondary_bool)
-                                     #marker_line_width=list([round(i/8) for i in South_df["Online"]]),
-                                     #marker_size=list(South_df["Online"])))
-            last_index = i_plot_df["level_0"].max()
-            
-    fig.add_trace(go.Scatter(mode="markers",
-                             x=[power_x],
-                             y=[power_y],
-                             marker_line_color="black",
-                             marker_color=trend_colors[0],
-                             marker_size = 6,
-                             marker_line_width=1),secondary_y = True)
-    fig.add_trace(go.Scatter(mode="markers",
-                             x=[flow_x],
-                             y=[flow_y],
-                             marker_line_color="black",
-                             marker_color=section_colors[section],
-                             marker_size = 6,
-                             marker_line_width=1))
-                             #marker_line_width=list([round(i/8) for i in South_df["Online"]]),
-                             #marker_size=list(South_df["Online"]))))
+            y_1_max = max(plot_df[var].max()*1.1,y_1_max)
+            color = section_colors[section]
+        fig.add_trace(go.Scatter(mode="lines",
+                                 x=list(plot_df.index),
+                                 y=list(plot_df[var]),
+                                 name = var,
+                                 hovertemplate =
+                                 '<b>Date Time</b>: %{x}' +
+                                 '<br><b>Value</b>: %{y:.2f}' +
+                                 '<br><b>Trend Type</b>: %{text}',
+                                 text = [trend_type]*len(plot_df),
+                                 marker_line_color=color,
+                                 marker_color=color,
+                                 opacity = trend_opac[trend_type]),secondary_y = secondary_bool)
+        fig.add_trace(go.Scatter(mode="markers",
+                                  x=[flow_x],
+                                  y=[flow_y],
+                                  marker_line_color="black",
+                                  marker_color=color,
+                                  marker_size = 6,
+                                  marker_line_width=1))
     fig.update_layout(showlegend=False,
-        yaxis2=dict(range=[0,y_2_max], showgrid=False, zeroline=False, visible = False),
-        xaxis=dict(showgrid=False, zeroline=False, visible = False),  # numbers below),
-        yaxis=dict(range = [0,y_1_max], showgrid=False, zeroline=False, visible = False),
+        #yaxis2=dict(range=[0,y_2_max], showgrid=False, zeroline=False, visible = False),
+        xaxis=dict(range = [plot_df.index[0],plot_df.index[-1]], showgrid=False, zeroline=False, visible = True),  # numbers below),
+        yaxis=dict(range = [0,y_1_max], showgrid=False, zeroline=False, visible = True),
         margin=dict(l=10, r=10, t=30, b=10),
-        height=150,
-        xaxis_title="Hours",
+        xaxis_title="DateTime",
+        height = 200,
         #yaxis_title="Demand (gpm)",
         #yaxis2_title="Power Usage (kw-hr)",
         plot_bgcolor="#fafbfc"
         )
-    #fig.write_html(section+"_"+str(month)+"_"+str(day)+"_"+str(hour)+"_forecast_plot.html")
-    if hour_inp == 0:
-        forecast_power_sum = powersum - start_power_sum
-    else:
-        forecast_power_sum = power_y - start_power_sum
-    return fig, forecast_power_sum, flow_y
+    return fig, flow_pred
 
+def convert_stored_dict_to_df(data_dictionary):
+    dat_dict = {}
+    for row in data_dictionary:
+        #print(row)
+        for key in row.keys():
+            if key in dat_dict.keys():
+                dat_dict[key].append(row[key])
+            else:
+                dat_dict[key] = [row[key]]
+    #print("dat_dict = ", dat_dict)
+    data_df = pd.DataFrame(dat_dict)
+    data_df.index = pd.to_datetime(data_df['index'])
+    data_df = data_df.drop(columns='index')
+    return data_df
 #plot(fig)
 
 ## Define interactions with the User interface.
 
 ## main callback that is run whenever update_data in lciskced or hour slider is changed.
-@app.callback([Output(component_id='well-operations-map', component_property='figure'),
-              Output(component_id='north_datatable', component_property='children'),
-              Output(component_id='south_datatable', component_property='children'),
-              Output(component_id='north-flow-pred', component_property='value'),
-              Output(component_id='south-flow-pred', component_property='value'),
-              Output(component_id='north_forecast', component_property='figure'),
-              Output(component_id='north-power-pred', component_property='value'),
-              Output(component_id='south_forecast', component_property='figure'),
-              Output(component_id='south-power-pred', component_property='value'),],
+
+@app.callback([Output('table-output', 'data'),
+               Output('update_data', 'children'),
+               Output('update_data', 'color')],
               [Input('update_data','n_clicks'),
-               Input('hour_slider','value'),
-               State('day_slider','value'),
-               State('month_slider','value'),],
-              prevent_initial_call=False)
-def gen_inl_graph(clicks, hour_inp, day, month_val):
-    
-    #updates north forecast
-    north_forc_fig, north_power, predicted_north_flow = plot_forecast(data_df,3,month_val, day, hour_inp, "north")
-    
-    #updates south forecast
-    south_forc_fig, south_power, predicted_south_flow = plot_forecast(data_df,3,month_val, day, hour_inp, "south")
-    
-    #finds online pumps from optimization
-    online_wells, north_q, south_q, north_usage, south_usage = update_optimization(init_df,predicted_north_flow, predicted_south_flow, hour_inp)
-    
-    #updates greographic plot based on online wells
-    fig = generate_geo_plot(locations_df,online_wells)
-    
-    #gets north and south data to be displayed in the prediction tables.
+               State('date-picker-range','start_date'),
+               State('date-picker-range','end_date')])
+def filter_countries(clicks, start_date, end_date):
+    if (start_date is None) | (end_date is None):
+        # Return all the rows on initial load/no country selected.
+        raise PreventUpdate
+    else:
+        final_data.columns = ["DateTime"]+list(final_data.columns[1:])
+        final_data.index = pd.to_datetime(final_data['DateTime'])
+        filt_data = final_data.reindex(pd.date_range(start=final_data.index[0], end=final_data.index[-1], freq='1H'))
+        m = forecast(filt_data)
+        
+        pred = m.ets(start=start_date, end=end_date)
+        pred = pred.reset_index()
+        print(pred)
+    return pred.to_dict('records'), [html.I(className="fa fa-download mr-1"), 'Update Pump Projections'] , "info"
+
+@app.callback([Output('well-operations-map','figure'),
+              Output('north_datatable', 'children'),
+              Output('south_datatable', 'children'),
+              Output('preds-table', 'children'),
+              Output('north_forecast', 'figure'),
+              Output('south_forecast', 'figure'),
+              Output('north-flow-pred', 'value'),
+              Output('south-flow-pred', 'value')],
+              [Input('table-output', 'data'),
+               Input('hour_slider', 'value')])
+def on_data_set_table(data, hour_inp):
+    if data is None:
+        raise PreventUpdate
+    print("data = ", data)
+    print("hour = ", hour_inp)
+    data_df = convert_stored_dict_to_df(data)
+    data_df = data_df.dropna()
+    columns = data_df.columns
+    north_fig, north_pred = plot_forecast(data_df,hour_inp,"north")
+    south_fig, south_pred = plot_forecast(data_df,hour_inp,"south")
+    online_wells, north_q, south_q, north_usage, south_usage = update_optimization(locations_df, north_pred, south_pred, hour_inp)
+    ops_map_fig = generate_geo_plot(locations_df,online_wells)
     north_data, south_data = update_table(locations_df,online_wells)
     
-    #formats data to be displayed in north table in user interface.
+    data_df=data_df.reset_index()
+    data_df.columns = ["DateTime"]+list(data_df.columns[1:])
+    preds_df = [html.Div([
+             dash_table.DataTable(id = "predicted_values",
+                 data=data_df.to_dict('records'),
+                 columns=[{'name': i, 'id': i} for i in data_df.columns],
+                 editable=False)])]
+    
     north_df = [html.Div([
-        dash_table.DataTable(id = "north_on_pumps",
-            data=north_data.to_dict('records'),
-            columns=[{'name': i, 'id': i} for i in north_data.columns],
-            editable=False)])]
+             dash_table.DataTable(id = "north_on_pumps",
+                 data=north_data.to_dict('records'),
+                 columns=[{'name': i, 'id': i} for i in north_data.columns],
+                 editable=False)])]
     
-    #formats data to be displayed in south table in user interface.
     south_df = [html.Div([
-        dash_table.DataTable(id = "south_on_pump",
-            data=south_data.to_dict('records'),
-            columns=[{'name': i, 'id': i} for i in south_data.columns],
-            editable=False)])]
+             dash_table.DataTable(id = "south_on_pump",
+                 data=south_data.to_dict('records'),
+                 columns=[{'name': i, 'id': i} for i in south_data.columns],
+                 editable=False)])]
     
-    return fig, north_df, south_df, round(predicted_north_flow,1), round(predicted_south_flow,1), north_forc_fig, round(north_power,1), south_forc_fig, round(south_power,1)
-
+    return ops_map_fig, north_df, south_df, preds_df, north_fig, south_fig, round(north_pred,1), round(south_pred,1)
+# =============================================================================
+# @app.callback([Output(component_id='well-operations-map', component_property='figure'),
+#               Output(component_id='north_datatable', component_property='children'),
+#               Output(component_id='south_datatable', component_property='children'),
+#               Output(component_id='north-flow-pred', component_property='value'),
+#               Output(component_id='south-flow-pred', component_property='value'),
+#               Output(component_id='north_forecast', component_property='figure'),
+#               Output(component_id='north-power-pred', component_property='value'),
+#               Output(component_id='south_forecast', component_property='figure'),
+#               Output(component_id='south-power-pred', component_property='value'),],
+#               [Input('update_data','n_clicks'),
+#                 Input('hour_slider','value'),
+#                 State('day_slider','value'),
+#                 State('month_slider','value'),],
+#               prevent_initial_call=False)
+# def gen_inl_graph(clicks, hour_inp, day, month_val):
+#     
+#     #updates north forecast
+#     north_forc_fig, north_power, predicted_north_flow = plot_forecast(final_data,3,month_val, day, hour_inp, "north")
+#     
+#     #updates south forecast
+#     south_forc_fig, south_power, predicted_south_flow = plot_forecast(final_data,3,month_val, day, hour_inp, "south")
+#     
+#     #finds online pumps from optimization
+#     online_wells, north_q, south_q, north_usage, south_usage = update_optimization(locations_df,predicted_north_flow, predicted_south_flow, hour_inp)
+#     
+#     #updates greographic plot based on online wells
+#     fig = generate_geo_plot(locations_df,online_wells)
+#     
+#     #gets north and south data to be displayed in the prediction tables.
+#     north_data, south_data = update_table(locations_df,online_wells)
+#     
+#     #formats data to be displayed in north table in user interface.
+#     north_df = [html.Div([
+#         dash_table.DataTable(id = "north_on_pumps",
+#             data=north_data.to_dict('records'),
+#             columns=[{'name': i, 'id': i} for i in north_data.columns],
+#             editable=False)])]
+#     
+#     #formats data to be displayed in south table in user interface.
+#     south_df = [html.Div([
+#         dash_table.DataTable(id = "south_on_pump",
+#             data=south_data.to_dict('records'),
+#             columns=[{'name': i, 'id': i} for i in south_data.columns],
+#             editable=False)])]
+#     
+#     return fig, north_df, south_df, round(predicted_north_flow,1), round(predicted_south_flow,1), north_forc_fig, round(north_power,1), south_forc_fig, round(south_power,1)
+# 
+# =============================================================================
 
 #updates number of days in month based on selection fro month.
-@app.callback([Output(component_id='day_slider', component_property='max'),
-              Output(component_id='day_slider', component_property='marks')],
-              [Input(component_id='month_slider', component_property='value')],
+@app.callback([Output(component_id='date-picker-range', component_property='end_date'),
+               Output(component_id='hour_slider', component_property='max'),
+               Output(component_id='hour_slider', component_property='marks')],
+              Input(component_id='date-picker-range', component_property='end_date'),
+              State(component_id='date-picker-range', component_property='start_date'),
               prevent_initial_call=False)
-def update_days_callback(month_val):
-    #print(month_val)
-      
-    days_dict = update_days(month_key[month_val][1])
-    
-    return month_key[month_val][1], days_dict
+def update_input_dates_callback(end_date, start_date):
+    #print((pd.to_datetime(end_date) - pd.to_datetime(start_date)).days)
+    #print((pd.to_datetime(end_date) - pd.to_datetime(start_date)).days < 3)
+    if (start_date is not None) & (end_date is not None):
+        days_diff = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
+        if days_diff > 2:
+            #add a prompt here to warn the user 48 horus in teh maximum.
+            new_end_date = pd.to_datetime(start_date) + timedelta(hours=48)
+        else:
+            new_end_date = end_date
+        if (pd.to_datetime(new_end_date) - pd.to_datetime(start_date)).total_seconds() / 3600 > 48:
+            new_end_date = pd.to_datetime(start_date) + timedelta(hours=48)
+        days_diff = (pd.to_datetime(new_end_date) - pd.to_datetime(start_date)).days
+        hours = days_diff*24
+        marks = make_hours_dict(hours)
+    return new_end_date, hours, marks
     
 if __name__ == '__main__':
-    app.run_server(debug=False)
+    app.run_server(debug=False) 
