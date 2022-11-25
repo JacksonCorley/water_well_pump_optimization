@@ -45,17 +45,6 @@ symbol_dict = {"PMP":200,"TNK":201,"VLV":26,"PP":35,"BPS":224}
 locations_df["symbol"] = [symbol_dict[p] for p in [i.split("_")[0] for i in locations_df["Location"]]]
 opt_df_lst = [locations_df[locations_df["Section"] == "South"], locations_df[locations_df["Section"] == "North"]]
 
-#make dictionary for days in a month and input to slider
-months_dict = {}
-month_key = {1:["Jan",31],2:["Feb",29],3:["Mar",31],4:["Apr",30],5:["May",31],6:["Jun",30],7:["Jul",31],8:["Aug",31],9:["Sep",30],10:["Oct",31],11:["Nov",30],12:["Dec",31]}
-for i in range(12):
-    months_dict[i+1] = {'label':month_key[i+1][0], 'style':{'font-size':'70%'}}
-
-#make dictionary for days slider
-days_dict = {}
-for i in range(month_key[1][1]):
-    days_dict[i+1] = {'label':str(i+1), 'style':{'font-size':'70%'}}
-
 #make dictionary for days slider
 def make_hours_dict(hours):
     hours_dict = {}
@@ -271,13 +260,8 @@ app.layout = html.Div(cards)
 #%% Make helper functions
 
 
-##place holder for optimization
+##optimization function.
 def update_optimization(df, predicted_north, predicted_south):
-    ###UPDATE WITH ACTUAL OPTIMIZATION
-    north_q = 0
-    north_usage = 0
-    south_q = 0
-    south_usage = 0
     optimal_pumps = []
     for itr, i_df in enumerate(opt_df_lst):
         if itr == 0:
@@ -292,6 +276,7 @@ def update_optimization(df, predicted_north, predicted_south):
             north_usage = opt_filt_df["Average_Power_Usage(kW-Hr)"].sum()
     return optimal_pumps, north_q, south_q, north_usage, south_usage
 
+##sums power usage based on the optimized pumps.
 def get_cum_usage(prediction_df):
     north_cum_usage =0
     south_cum_usage =0
@@ -300,13 +285,6 @@ def get_cum_usage(prediction_df):
         north_cum_usage = north_cum_usage + north_usage
         south_cum_usage = south_cum_usage + south_usage
     return north_cum_usage,  south_cum_usage
-
-## updates number of days in month based on month selection
-def update_days(month):
-    days_dict = {}
-    for i in range(month):
-        days_dict[i+1] = {'label':str(i+1), 'style':{'font-size':'70%'}}
-    return days_dict
 
 #function to update geographics plot of online pumps
 def generate_geo_plot(Dataframe, on_predictions):
@@ -469,12 +447,10 @@ def convert_stored_dict_to_df(data_dictionary):
     data_df.index = pd.to_datetime(data_df['index'])
     data_df = data_df.drop(columns='index')
     return data_df
-#plot(fig)
 
-## Define interactions with the User interface.
 
-## main callback that is run whenever update_data in lciskced or hour slider is changed.
-
+#%% Dash Callback functions. 
+# callback to run the predictions on the timeseries data. Run only when the update predictions is clicked.
 @app.callback([Output('table-output', 'data'),
                Output('update_data', 'children'),
                Output('update_data', 'color')],
@@ -495,6 +471,7 @@ def filter_countries(clicks, start_date, end_date):
         pred = pred.reset_index()
     return pred.to_dict('records'), [html.I(className="fa fa-download mr-1"), 'Update Pump Projections'] , "info"
 
+#callback to update the map, north and south tables, forecast graphs, and optimization information. This is run when hour is changed or the update predictions is clicked.
 @app.callback([Output('well-operations-map','figure'),
               Output('north_datatable', 'children'),
               Output('south_datatable', 'children'),
@@ -510,16 +487,23 @@ def filter_countries(clicks, start_date, end_date):
 def on_data_set_table(data, hour_inp):
     if data is None:
         raise PreventUpdate
-    #print("data = ", data)
-    #print("hour = ", hour_inp)
+
+    #data is stored in memory and brought in from dcc.Store component. Needs to be converted to df.
     data_df = convert_stored_dict_to_df(data)
     data_df = data_df.dropna()
+    
+    #update forecast plots and get current forecast flow value for the north.
     north_fig, north_pred = plot_forecast(data_df,hour_inp,"north")
+    #update forecast plots and get current forecast flow value for the south.
     south_fig, south_pred = plot_forecast(data_df,hour_inp,"south")
+    #get the optimized online wells. other vairables aren'r currently being displayed.
     online_wells, north_q, south_q, north_usage, south_usage = update_optimization(locations_df, north_pred, south_pred)
+    #update the geopraphic map of pumps
     ops_map_fig = generate_geo_plot(locations_df,online_wells)
+    #get the dataframes for the north and south online pumps.
     north_data, south_data = update_table(locations_df,online_wells)
     
+    #make table output for predictions
     data_df=data_df.reset_index()
     data_df.columns = ["DateTime"]+list(data_df.columns[1:])
     preds_df = [html.Div([
@@ -528,24 +512,27 @@ def on_data_set_table(data, hour_inp):
                  columns=[{'name': i, 'id': i} for i in data_df.columns],
                  editable=False)])]
     
+    # make table for north optimized pumps
     north_df = [html.Div([
              dash_table.DataTable(id = "north_on_pumps",
                  data=north_data.to_dict('records'),
                  columns=[{'name': i, 'id': i} for i in north_data.columns],
                  editable=False)])]
     
+    # make table for south optimized pumps 
     south_df = [html.Div([
              dash_table.DataTable(id = "south_on_pump",
                  data=south_data.to_dict('records'),
                  columns=[{'name': i, 'id': i} for i in south_data.columns],
                  editable=False)])]
     
+    #determien the cumulative north and south power usage.
     north_cum_usage,  south_cum_usage = get_cum_usage(data_df)
     
     return ops_map_fig, north_df, south_df, preds_df, north_fig, south_fig, round(north_pred,1), round(south_pred,1), round(north_cum_usage,1),  round(south_cum_usage,1)
 
 
-#updates number of days in month based on selection fro month.
+#updates number of days in month based on selection from month.
 @app.callback([Output(component_id='date-picker-range', component_property='end_date'),
                Output(component_id='hour_slider', component_property='max'),
                Output(component_id='hour_slider', component_property='marks')],
@@ -553,8 +540,6 @@ def on_data_set_table(data, hour_inp):
               State(component_id='date-picker-range', component_property='start_date'),
               prevent_initial_call=False)
 def update_input_dates_callback(end_date, start_date):
-    #print((pd.to_datetime(end_date) - pd.to_datetime(start_date)).days)
-    #print((pd.to_datetime(end_date) - pd.to_datetime(start_date)).days < 3)
     if (start_date is not None) & (end_date is not None):
         days_diff = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
         if days_diff > 2:
