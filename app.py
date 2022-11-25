@@ -4,14 +4,8 @@ Created on Wed Feb  9 14:33:38 2022
 
 @author: JC056455
 """
-import base64
-import datetime
-import io
-import math
 import pandas as pd
-import os
 
-from plotly.offline import plot
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
@@ -24,19 +18,17 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import date
 from datetime import timedelta
-#import shapely
-#from shapely.geometry import LineString, Point
 
 # forecasting function
-#from forecast.forecast import naive_mstl
-from forecast import forecast 
+from forecast import forecast
 
+# optimization function
+from optimization import optimizer
 
 ### user inputs
 from plotly.validators.scatter.marker import SymbolValidator
 raw_symbols = SymbolValidator().values
 
-#os.chdir(r"C:\Users\jdcor\OneDrive\Documents\GitHub\CSE6242\app")
 
 ## constants
 
@@ -51,6 +43,7 @@ final_data = pd.read_csv("Final_Data_hourly_clean.csv")
 locations_df = pd.read_csv("Well_Summarys.csv")
 symbol_dict = {"PMP":200,"TNK":201,"VLV":26,"PP":35,"BPS":224}
 locations_df["symbol"] = [symbol_dict[p] for p in [i.split("_")[0] for i in locations_df["Location"]]]
+opt_df_lst = [locations_df[locations_df["Section"] == "South"], locations_df[locations_df["Section"] == "North"]]
 
 #make dictionary for days in a month and input to slider
 months_dict = {}
@@ -132,7 +125,22 @@ Time_Selection_Card = dbc.Card(
                     value = 1,
                     marks = make_hours_dict(48),
                     tooltip = {'always_visible': False,'placement':'bottom'},
-                ),]),             
+                ),]),
+            dbc.Row([
+                dbc.Col([html.P("Power Usage kW-h",className="card-text")]),
+                dbc.Col([html.P("Total Predicted",className="card-text")]),
+                dbc.Col([html.P("Total Optimized",className="card-text")]),
+                ]),
+            dbc.Row([
+                dbc.Col([html.P("North",className="card-text")]),
+                dbc.Col([dcc.Input(id="north-power-pred", type="number", value = 0, disabled =True, style={'width':'60%'})]),
+                dbc.Col([dcc.Input(id="north-power-opt", type="number", value = 0, disabled =True, style={'width':'60%'})]),
+                ]),
+            dbc.Row([
+                dbc.Col([html.P("South",className="card-text")]),
+                dbc.Col([dcc.Input(id="south-power-pred", type="number", value = 0, disabled =True, style={'width':'60%'})]),
+                dbc.Col([dcc.Input(id="south-power-opt", type="number", value = 0, disabled =True, style={'width':'60%'})]),
+                ]),
             ]
         )
     )
@@ -146,11 +154,7 @@ South_Pred_Card = dbc.Card(
                         ]),
                     dbc.Row([
                         dbc.Col([html.P("Flow Predictions (gpm)",className="card-text")]),
-                        dbc.Col([html.P("Total Power Usage (kW-hr)",className="card-text")]),
-                        ]),
-                    dbc.Row([
                         dbc.Col([dcc.Input(id="north-flow-pred", type="number", value = 0, disabled = True, style={'width':'60%'})]),
-                        dbc.Col([dcc.Input(id="north-power-pred", type="number", value = 0, disabled =True, style={'width':'60%'})]),
                         ]),
                     dbc.Row([
                         dbc.Col([dcc.Graph(id='north_forecast')]),
@@ -171,11 +175,7 @@ North_Pred_Card = dbc.Card(
                         ]),
                     dbc.Row([
                         dbc.Col([html.P("Flow Predictions (gpm)",className="card-text")]),
-                        dbc.Col([html.P("Total Power Usage (kW-hr)",className="card-text")]),
-                        ]),
-                    dbc.Row([
                         dbc.Col([dcc.Input(id="south-flow-pred", type="number", value = 0, disabled =True, style={'width':'60%'})]),
-                        dbc.Col([dcc.Input(id="south-power-pred", type="number", value = 0, disabled =True, style={'width':'60%'})]),
                         ]),
                     dbc.Row([
                         dbc.Col([dcc.Graph(id='south_forecast')]),
@@ -207,9 +207,6 @@ north_wells_table_Card = dbc.Card(
                         dbc.Col([html.H5("North Well Operations Table", className="card-title")]),
                         ]),
                     dbc.Row([
-                        dbc.Col([html.P("North Section", className="card-text")]),
-                        ]),
-                    dbc.Row([
                         dbc.Col([html.Div(id='north_datatable')]),
                         ]),
                     #dcc.Input(id="min-SCFM", type="number", value = 0, disabled = True),
@@ -223,9 +220,6 @@ south_wells_table_Card = dbc.Card(
                 [
                     dbc.Row([
                         dbc.Col([html.H5("South Well Operations Table", className="card-title")]),
-                        ]),
-                    dbc.Row([
-                        dbc.Col([html.P("South Section", className="card-text")]),
                         ]),
                     dbc.Row([
                         dbc.Col([html.Div(id='south_datatable')]),
@@ -278,35 +272,34 @@ app.layout = html.Div(cards)
 
 
 ##place holder for optimization
-def update_optimization(df, predicted_north, predicted_south, hour):
+def update_optimization(df, predicted_north, predicted_south):
     ###UPDATE WITH ACTUAL OPTIMIZATION
-    north_pmps = []
-    south_pmps =[]
     north_q = 0
     north_usage = 0
     south_q = 0
     south_usage = 0
-    div = hour % 2 + 1
-    for r, section in enumerate(list(set(df["Section"]))):
-        i_data = df[df["Section"] == section]
-        for i, ind in enumerate(list(i_data["Location"].index)):
-            if section.lower() == "north":
-                if i % div == 0:
-                    if i_data.at[ind,"Average_Flow(gpm)"] > 0:
-                        north_q += i_data.at[ind,"Average_Flow(gpm)"]
-                        north_usage += i_data.at[ind,"Average_Power_Usage(kW-Hr)"]
-                        north_pmps.append(i_data.at[ind,"Location"])
-                        if (north_q > predicted_north*0.85) & (north_q < predicted_north*1.15):
-                            break
-            elif section.lower() == "south":
-                if i % div == 0:
-                    if i_data.at[ind,"Average_Flow(gpm)"] > 0:
-                        south_q += i_data.at[ind,"Average_Flow(gpm)"]
-                        south_usage += i_data.at[ind,"Average_Power_Usage(kW-Hr)"]
-                        south_pmps.append(i_data.at[ind,"Location"])
-                        if (south_q > predicted_south*0.85) & (south_q < predicted_south*1.15):
-                            break
-    return north_pmps + south_pmps, north_q, south_q, north_usage, south_usage
+    optimal_pumps = []
+    for itr, i_df in enumerate(opt_df_lst):
+        if itr == 0:
+            optimal_pumps = optimal_pumps + optimizer(i_df, thresh = predicted_south)
+            opt_filt_df = i_df.loc[[row for row in i_df.index if i_df.at[row,"Location"] in optimal_pumps]]
+            south_q = opt_filt_df["Average_Flow(gpm)"].sum()
+            south_usage = opt_filt_df["Average_Power_Usage(kW-Hr)"].sum()
+        else:
+            optimal_pumps = optimal_pumps + optimizer(i_df, thresh = predicted_north)
+            opt_filt_df = i_df.loc[[row for row in i_df.index if i_df.at[row,"Location"] in optimal_pumps]]
+            north_q = opt_filt_df["Average_Flow(gpm)"].sum()
+            north_usage = opt_filt_df["Average_Power_Usage(kW-Hr)"].sum()
+    return optimal_pumps, north_q, south_q, north_usage, south_usage
+
+def get_cum_usage(prediction_df):
+    north_cum_usage =0
+    south_cum_usage =0
+    for row in list(prediction_df.index):
+        optimal_pumps, north_q, south_q, north_usage, south_usage = update_optimization(locations_df, prediction_df.at[row,"north_pred"], prediction_df.at[row,"south_pred"])
+        north_cum_usage = north_cum_usage + north_usage
+        south_cum_usage = south_cum_usage + south_usage
+    return north_cum_usage,  south_cum_usage
 
 ## updates number of days in month based on month selection
 def update_days(month):
@@ -500,7 +493,6 @@ def filter_countries(clicks, start_date, end_date):
         
         pred = m.ets(start=start_date, end=end_date)
         pred = pred.reset_index()
-        print(pred)
     return pred.to_dict('records'), [html.I(className="fa fa-download mr-1"), 'Update Pump Projections'] , "info"
 
 @app.callback([Output('well-operations-map','figure'),
@@ -510,20 +502,21 @@ def filter_countries(clicks, start_date, end_date):
               Output('north_forecast', 'figure'),
               Output('south_forecast', 'figure'),
               Output('north-flow-pred', 'value'),
-              Output('south-flow-pred', 'value')],
+              Output('south-flow-pred', 'value'),
+              Output('north-power-opt', 'value'),
+              Output('south-power-opt', 'value')],
               [Input('table-output', 'data'),
                Input('hour_slider', 'value')])
 def on_data_set_table(data, hour_inp):
     if data is None:
         raise PreventUpdate
-    print("data = ", data)
-    print("hour = ", hour_inp)
+    #print("data = ", data)
+    #print("hour = ", hour_inp)
     data_df = convert_stored_dict_to_df(data)
     data_df = data_df.dropna()
-    columns = data_df.columns
     north_fig, north_pred = plot_forecast(data_df,hour_inp,"north")
     south_fig, south_pred = plot_forecast(data_df,hour_inp,"south")
-    online_wells, north_q, south_q, north_usage, south_usage = update_optimization(locations_df, north_pred, south_pred, hour_inp)
+    online_wells, north_q, south_q, north_usage, south_usage = update_optimization(locations_df, north_pred, south_pred)
     ops_map_fig = generate_geo_plot(locations_df,online_wells)
     north_data, south_data = update_table(locations_df,online_wells)
     
@@ -547,56 +540,10 @@ def on_data_set_table(data, hour_inp):
                  columns=[{'name': i, 'id': i} for i in south_data.columns],
                  editable=False)])]
     
-    return ops_map_fig, north_df, south_df, preds_df, north_fig, south_fig, round(north_pred,1), round(south_pred,1)
-# =============================================================================
-# @app.callback([Output(component_id='well-operations-map', component_property='figure'),
-#               Output(component_id='north_datatable', component_property='children'),
-#               Output(component_id='south_datatable', component_property='children'),
-#               Output(component_id='north-flow-pred', component_property='value'),
-#               Output(component_id='south-flow-pred', component_property='value'),
-#               Output(component_id='north_forecast', component_property='figure'),
-#               Output(component_id='north-power-pred', component_property='value'),
-#               Output(component_id='south_forecast', component_property='figure'),
-#               Output(component_id='south-power-pred', component_property='value'),],
-#               [Input('update_data','n_clicks'),
-#                 Input('hour_slider','value'),
-#                 State('day_slider','value'),
-#                 State('month_slider','value'),],
-#               prevent_initial_call=False)
-# def gen_inl_graph(clicks, hour_inp, day, month_val):
-#     
-#     #updates north forecast
-#     north_forc_fig, north_power, predicted_north_flow = plot_forecast(final_data,3,month_val, day, hour_inp, "north")
-#     
-#     #updates south forecast
-#     south_forc_fig, south_power, predicted_south_flow = plot_forecast(final_data,3,month_val, day, hour_inp, "south")
-#     
-#     #finds online pumps from optimization
-#     online_wells, north_q, south_q, north_usage, south_usage = update_optimization(locations_df,predicted_north_flow, predicted_south_flow, hour_inp)
-#     
-#     #updates greographic plot based on online wells
-#     fig = generate_geo_plot(locations_df,online_wells)
-#     
-#     #gets north and south data to be displayed in the prediction tables.
-#     north_data, south_data = update_table(locations_df,online_wells)
-#     
-#     #formats data to be displayed in north table in user interface.
-#     north_df = [html.Div([
-#         dash_table.DataTable(id = "north_on_pumps",
-#             data=north_data.to_dict('records'),
-#             columns=[{'name': i, 'id': i} for i in north_data.columns],
-#             editable=False)])]
-#     
-#     #formats data to be displayed in south table in user interface.
-#     south_df = [html.Div([
-#         dash_table.DataTable(id = "south_on_pump",
-#             data=south_data.to_dict('records'),
-#             columns=[{'name': i, 'id': i} for i in south_data.columns],
-#             editable=False)])]
-#     
-#     return fig, north_df, south_df, round(predicted_north_flow,1), round(predicted_south_flow,1), north_forc_fig, round(north_power,1), south_forc_fig, round(south_power,1)
-# 
-# =============================================================================
+    north_cum_usage,  south_cum_usage = get_cum_usage(data_df)
+    
+    return ops_map_fig, north_df, south_df, preds_df, north_fig, south_fig, round(north_pred,1), round(south_pred,1), round(north_cum_usage,1),  round(south_cum_usage,1)
+
 
 #updates number of days in month based on selection fro month.
 @app.callback([Output(component_id='date-picker-range', component_property='end_date'),
