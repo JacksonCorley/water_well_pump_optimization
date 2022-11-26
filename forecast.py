@@ -58,7 +58,7 @@ class forecast:
         return predict[['north_total_flow', 'south_total_flow', 'north_pred', 'south_pred']]
         #return pred
 
-    def prof(self,  start:str, end:str):
+    def prof(self, start:str, end:str):
         """
         fits a prophet model to the north and south regions separately 
 
@@ -120,7 +120,7 @@ class forecast:
         s_fcst.index = s_fcst['ds']
         
         # combine 
-        preds = final_data[test.index[0]:test.index[-1]][['north_total_flow', 'south_total_flow']].copy()
+        preds = self.hist[test.index[0]:test.index[-1]][['north_total_flow', 'south_total_flow']].copy()
         preds['north_pred'] = n_fcst.loc[start:end]['yhat']
         preds['south_pred'] = s_fcst.loc[start:end]['yhat']
         
