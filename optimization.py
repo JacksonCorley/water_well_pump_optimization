@@ -18,7 +18,7 @@ def optimizer(df, thresh=12584):
 	power = df["Average_Power_Usage(kW-Hr)"]
 	pump = df["Location"]
 
-	print("\n\nSection: {}\n\n".format(df["Section"][0]))
+	#print("\n\nSection: {}\n\n".format(df["Section"][0]))
 
 	q = [1 for i in range(len(flow))]
 	k = [i for i in flow]
@@ -29,7 +29,7 @@ def optimizer(df, thresh=12584):
 	problem = cp.Problem(objective, constraints)
 	result = problem.solve()
 	pumpList = x.value
-	print("---> Total power usage is {} kW-Hr to meet demand. <---".format(result))
+	#print("---> Total power usage is {} kW-Hr to meet demand. <---".format(result))
 	#print(pumpList)
 
 	flowSum = 0
@@ -37,7 +37,7 @@ def optimizer(df, thresh=12584):
 		if val==1:
 			flowSum += flow[i]
 	
-	print("---> Total flow to minimize power while meeting demand: {} gpm.".format(flowSum))
+	#print("---> Total flow to minimize power while meeting demand: {} gpm.".format(flowSum))
 			
 	out = list()
 	pat = re.compile("\d\d?")
