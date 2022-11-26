@@ -2,7 +2,7 @@ numpy
 pandas==1.2.4
 scipy
 scikit-learn
-git+https://github.com/statsmodels/statsmodels
+statsmodels
 dash
 cvxpy
 plotly
@@ -13,3 +13,4 @@ dash-core-components
 dash-html-components
 dash-renderer
 dash-table
+cvxopt
