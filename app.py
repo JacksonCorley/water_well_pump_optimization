@@ -93,14 +93,19 @@ Time_Selection_Card = dbc.Card(
             dbc.Row([
                 dbc.Col(dcc.DatePickerRange(
                     id='date-picker-range',
-                    min_date_allowed=date(2017, 7,7),
+                    min_date_allowed=date(2017, 7, 9),
                     max_date_allowed=date(2019, 7, 7),
                     initial_visible_month=date(2018, 4, 14),
                     end_date=date(2018, 4, 16))),
-                dbc.Col(dbc.Button(id='update_data',
+                dbc.Col([dbc.Button(id='update_data',
                            children=[html.I(className="fa fa-download mr-1"), 'Update Pump Projections'],
                            color="info",
-                           className="mt-1", ),)
+                           className="mt-1", ),
+                         dcc.Loading(
+                             id="loading-predictions",
+                             type="default",
+                             children=html.Div(id="loading-predictions-output"))
+                         ]),
                 ]),            
             dbc.Row([
                 dbc.Col([html.P("Hour",className="card-text")])
@@ -453,11 +458,12 @@ def convert_stored_dict_to_df(data_dictionary):
 # callback to run the predictions on the timeseries data. Run only when the update predictions is clicked.
 @app.callback([Output('table-output', 'data'),
                Output('update_data', 'children'),
-               Output('update_data', 'color')],
+               Output('update_data', 'color'),
+               Output("loading-predictions-output", "children")],
               [Input('update_data','n_clicks'),
                State('date-picker-range','start_date'),
                State('date-picker-range','end_date')])
-def filter_countries(clicks, start_date, end_date):
+def update_predictions(clicks, start_date, end_date):
     if (start_date is None) | (end_date is None):
         # Return all the rows on initial load/no country selected.
         raise PreventUpdate
@@ -469,7 +475,7 @@ def filter_countries(clicks, start_date, end_date):
         
         pred = m.ets(start=start_date, end=end_date)
         pred = pred.reset_index()
-    return pred.to_dict('records'), [html.I(className="fa fa-download mr-1"), 'Update Pump Projections'] , "info"
+    return pred.to_dict('records'), [html.I(className="fa fa-download mr-1"), 'Update Pump Projections'] , "info", "Perdictions Updated"
 
 #callback to update the map, north and south tables, forecast graphs, and optimization information. This is run when hour is changed or the update predictions is clicked.
 @app.callback([Output('well-operations-map','figure'),
