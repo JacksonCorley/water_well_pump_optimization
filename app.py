@@ -618,6 +618,9 @@ def on_data_set_table(data, hour_inp, north_tab_val, south_tab_val):
     ops_map_fig_dcc_graph = dcc.Graph(id="well_ops_graph",figure = ops_map_fig)
     #get the dataframes for the north and south online pumps.
     north_data, south_data = update_table(locations_df,online_wells)
+    section_cols = ["Pump","Average Flow (gpm)","Average Power Usage (kW-Hr)"]
+    north_data.columns = section_cols
+    south_data.columns = section_cols
     
     #make table output for predictions
     preds_df = [html.Div([
