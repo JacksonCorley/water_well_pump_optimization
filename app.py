@@ -132,7 +132,7 @@ South_Pred_Card = dbc.Card(
             dbc.CardBody(
                 [
                     dbc.Row([
-                        dbc.Col([html.H5("North Section - Totalized", className="card-title")]),
+                        dbc.Col([html.H5("North Section: Combined Active Pumps", className="card-title")]),
                         ]),
                     dbc.Row([
                         dbc.Col([dcc.Tabs(id="north_tabs", value='north_tab_1', children=[
@@ -153,7 +153,7 @@ North_Pred_Card = dbc.Card(
             dbc.CardBody(
                 [
                     dbc.Row([
-                        dbc.Col([html.H5("South Section - Totalized", className="card-title")]),
+                        dbc.Col([html.H5("South Section: Combined Active Pumps", className="card-title")]),
                         ]),
                     dbc.Row([
                         dbc.Col([dcc.Tabs(id="south_tabs", value='south_tab_1', children=[
