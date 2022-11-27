@@ -558,7 +558,7 @@ def update_predictions(clicks, start_date, end_date):
          
         pred = m.prof(start=start_date, end=end_date)
         pred = pred.reset_index()
-    return pred.to_dict('records'), [html.I(className="fa fa-download mr-1"), 'Update Pump Projections'] , "info", "Perdictions Updated"
+    return pred.to_dict('records'), [html.I(className="fa fa-download mr-1"), 'Update Pump Projections'] , "info", "Predictions Updated"
 # 
 # #callback to update the map, north and south tables, forecast graphs, and optimization information. This is run when hour is changed or the update predictions is clicked.
 @app.callback([Output('well-operations-map','children'),
