@@ -132,12 +132,12 @@ South_Pred_Card = dbc.Card(
             dbc.CardBody(
                 [
                     dbc.Row([
-                        dbc.Col([html.H5("North Section", className="card-title")]),
+                        dbc.Col([html.H5("North Section - Totalized", className="card-title")]),
                         ]),
                     dbc.Row([
                         dbc.Col([dcc.Tabs(id="north_tabs", value='north_tab_1', children=[
                             dcc.Tab(label='Flow', value='north_tab_1'),
-                            dcc.Tab(label='Power Usage', value='north_tab_2'),
+                            dcc.Tab(label='Cumulative Power Usage', value='north_tab_2'),
                             ]),
                             html.Div(id='north_forecast')])
                         ]),
@@ -153,12 +153,12 @@ North_Pred_Card = dbc.Card(
             dbc.CardBody(
                 [
                     dbc.Row([
-                        dbc.Col([html.H5("South Section", className="card-title")]),
+                        dbc.Col([html.H5("South Section - Totalized", className="card-title")]),
                         ]),
                     dbc.Row([
                         dbc.Col([dcc.Tabs(id="south_tabs", value='south_tab_1', children=[
                             dcc.Tab(label='Flow', value='south_tab_1'),
-                            dcc.Tab(label='Power Usage', value='south_tab_2'),
+                            dcc.Tab(label='Cumulative Power Usage', value='south_tab_2'),
                             ]),
                             html.Div(id='south_forecast')],
                             )
@@ -415,6 +415,7 @@ def plot_flow_forecast(dataframe, hour_inp, section):
                                   marker_color=color,
                                   marker_size = 6,
                                   marker_line_width=1,
+                                  showlegend = False,
                                   opacity = trend_opac[trend_type]))
     fig.update_layout(showlegend=True,
         #yaxis2=dict(range=[0,y_2_max], showgrid=False, zeroline=False, visible = False),
@@ -506,13 +507,14 @@ def plot_usage_forecast(pred_dataframe, online_wells, north_for_usage, south_for
                                   marker_color=color,
                                   marker_size = 6,
                                   marker_line_width=1,
+                                  showlegend = False,
                                   opacity = trend_opac[trend_type]))
     fig.update_layout(showlegend=True,
         #yaxis2=dict(range=[0,y_2_max], showgrid=False, zeroline=False, visible = False),
         xaxis=dict(range = [plot_df.index[0],plot_df.index[-1]], showgrid=False, zeroline=False, visible = True),  # numbers below),
         yaxis=dict(range = [0,y_1_max], showgrid=False, zeroline=False, visible = True),
         margin=dict(l=10, r=10, t=30, b=10),
-        yaxis_title = "Power Usage (kW-h)",
+        yaxis_title = "Power Usage (kW-Hr)",
         height = 220,
         #yaxis_title="Demand (gpm)",
         #yaxis2_title="Power Usage (kw-hr)",
@@ -646,16 +648,16 @@ def on_data_set_table(data, hour_inp, north_tab_val, south_tab_val):
                  columns=[{'name': i, 'id': i} for i in north_data.columns],
                  style_data={
                      'color': 'black',
-                     'backgroundColor': '#8f6a6d',
+                     'backgroundColor': '#e3c3c6',
                      'border': '1px solid black'
                      },
                  style_data_conditional=[
                      {
                          'if': {'row_index': 'odd'},
-                         'backgroundColor': '#c4c2c3',
+                         'backgroundColor': 'white',
                          }],
                  style_header={
-                     'backgroundColor': '#c4c2c3',
+                     'backgroundColor': 'white',
                      'color': 'black',
                      'border': '1px solid black'
                      #'fontWeight': 'bold'
@@ -669,16 +671,16 @@ def on_data_set_table(data, hour_inp, north_tab_val, south_tab_val):
                  columns=[{'name': i, 'id': i} for i in south_data.columns],
                  style_data={
                      'color': 'black',
-                     'backgroundColor': '#9bbfc7',
+                     'backgroundColor': '#cee8ed',
                      'border': '1px solid black'
                      },
                  style_data_conditional=[
                      {
                          'if': {'row_index': 'odd'},
-                         'backgroundColor': '#c4c2c3',
+                         'backgroundColor': 'white',
                          }],
                  style_header={
-                     'backgroundColor': '#c4c2c3',
+                     'backgroundColor': 'white',
                      'color': 'black',
                      'border': '1px solid black'
                      #'fontWeight': 'bold'
@@ -692,7 +694,7 @@ def on_data_set_table(data, hour_inp, north_tab_val, south_tab_val):
                  height=150,
                  color_discrete_sequence=[
                      "firebrick", "lightskyblue"],
-                 title='Cumulative Power Usage')
+                 title='Cumulative Power Usage (kW-Hr)')
 
     cum_usage_fig.update_layout(showlegend=True,yaxis=dict(showgrid=False, visible = True),
                                 yaxis_title = "",
