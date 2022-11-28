@@ -49,8 +49,8 @@ opt_df_lst = [locations_df[locations_df["Section"] == "South"], locations_df[loc
 #make dictionary for days slider
 def make_hours_dict(hours):
     hours_dict = {}
-    for i in range(48):
-        if i % 2 ==0:
+    for i in range(hours):
+        if i % (hours/24) ==0:
             hours_dict[i+1] = {'label':str(i), 'style':{'font-size':'50%'}}
         else:
             hours_dict[i+1] = {'label':"", 'style':{'font-size':'50%'}}
@@ -79,13 +79,6 @@ Title_Card = dbc.Card(
 Time_Selection_Card = dbc.Card(
     dbc.CardBody(
         [
-# =============================================================================
-#             dbc.Row([
-#                 dbc.Col([html.H5("Time Inputs", className="card-title")]),
-#                 dbc.Col(html.Button('Update Pump Projections', id='update_data', n_clicks=0)),
-#                 dbc.Col(dcc.Store(id='table-output')),
-#                 ]),
-# =============================================================================
             dbc.Row([
                 dbc.Col([html.P("Date Range Selection",className="card-text")]),
                 dbc.Col(dcc.Store(id='table-output')),
@@ -711,26 +704,28 @@ def on_data_set_table(data, hour_inp, north_tab_val, south_tab_val):
 # =============================================================================
 
 #updates number of days in month based on selection from month.
-@app.callback([Output(component_id='date-picker-range', component_property='end_date'),
-               Output(component_id='hour_slider', component_property='max'),
+@app.callback([Output(component_id='hour_slider', component_property='max'),
                Output(component_id='hour_slider', component_property='marks')],
               Input(component_id='date-picker-range', component_property='end_date'),
-              State(component_id='date-picker-range', component_property='start_date'),
+              Input(component_id='date-picker-range', component_property='start_date'),
               prevent_initial_call=False)
 def update_input_dates_callback(end_date, start_date):
     if (start_date is not None) & (end_date is not None):
         days_diff = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
-        if days_diff > 2:
-            #add a prompt here to warn the user 48 horus in teh maximum.
-            new_end_date = pd.to_datetime(start_date) + timedelta(hours=48)
-        else:
-            new_end_date = end_date
-        if (pd.to_datetime(new_end_date) - pd.to_datetime(start_date)).total_seconds() / 3600 > 48:
-            new_end_date = pd.to_datetime(start_date) + timedelta(hours=48)
-        days_diff = (pd.to_datetime(new_end_date) - pd.to_datetime(start_date)).days
+#not currently used. Used to be used to make 48 hrous the maximum vieable interval for the date range.
+# =============================================================================
+#         if days_diff > 2:
+#             #add a prompt here to warn the user 48 horus in teh maximum.
+#             new_end_date = pd.to_datetime(start_date) + timedelta(hours=48)
+#         else:
+#             new_end_date = end_date
+#         if (pd.to_datetime(new_end_date) - pd.to_datetime(start_date)).total_seconds() / 3600 > 48:
+#             new_end_date = pd.to_datetime(start_date) + timedelta(hours=48)
+#         days_diff = (pd.to_datetime(new_end_date) - pd.to_datetime(start_date)).days
+# =============================================================================
         hours = days_diff*24
         marks = make_hours_dict(hours)
-    return new_end_date, hours, marks
+        return hours, marks
     
 if __name__ == '__main__':
     app.run_server(debug=False) 
