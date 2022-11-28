@@ -35,4 +35,39 @@ Folder structure of this application with file Description:
 	--Well_Summarys.csv		 -> List of all the pumps, their location, and their specs
 
 How to use this Application:
-1) Once you run the command docker-compose up, the app can be access through http://localhost:8000/ in any of your browser.
+1) Once you run the command docker-compose up, the app can be access through http://localhost:8000/ in any of your browser. 
+
+Breakdown of UI:
+1) Date Range Selection:
+   In this section, you can select the start date and end date to get the forecast and optimized values. Unfortunately, the date range is limited to our available data, so this application cannot go past 7/7/19.
+
+2) Hour Selection:
+   The selected date range updates the hour selection field. You have the ability to get the forecast data in the increment of 1 hour between the selected date range.
+
+3) Update Pump Projections:
+   This button runs the date via our forecast time series model and optimizes the flow and cumulative power usage.
+
+4) Cumulative Power Usage:
+   This section highlights the optimized cumulative power usage vs the historical cumulative power usage for both north and south wells.
+
+4) North Section: Combined Active Pumps:
+   The section shows the line graph of north section including historical data and forecast data for both Flow and Cumulative power usage for the selected date range.
+
+5) South Section: Combined Active Pumps:
+   The section shows the line graph of south section including historical data and forecast data for both Flow and Cumulative power usage for the selected date range.
+
+6) Well Operations Map:
+   This section shows the pump location and active pumps.
+
+7) North Well Operations Table:
+   This section shows the north well active pumps their average flow and average power usage.
+
+8) South Well Operations Table:
+   This section shows the south well active pumps their average flow and average power usage.
+
+9) Prediction Data:
+   This section shows all the historical flow, predicted flow, historical power usage, and optimized power usage for both south and north wells.
+
+
+
+

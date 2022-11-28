@@ -89,7 +89,7 @@ Time_Selection_Card = dbc.Card(
                     min_date_allowed=date(2017, 7, 9),
                     max_date_allowed=date(2019, 7, 7),
                     initial_visible_month=date(2018, 4, 14),
-                    end_date=date(2018, 4, 16))),
+                    start_date=date(2018, 4, 15))),
                 dbc.Col([dbc.Button(id='update_data',
                            children=[html.I(className="fa fa-download mr-1"), 'Update Pump Projections'],
                            color="info",
