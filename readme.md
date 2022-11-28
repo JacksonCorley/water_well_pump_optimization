@@ -13,7 +13,7 @@ changes to the system given a user-defined level of demand.
 repository as zip. Once unzipped, change your directory to the water_well_pump_optimization. 
 cd directly to water_well_pump_optimization folder if you cloned the git repository. 
 5) Open the terminal in water_well_pump_optimization directory.
-6) The app can be run with a single command,
+6) Run this command in the terminal:
 
     docker-compose up
 7) Subsequently, the app can be accessed at,
