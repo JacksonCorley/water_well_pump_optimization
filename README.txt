@@ -7,6 +7,7 @@ changes to the system given a user-defined date range.
 
 INSTALLATION :
 1) Download Docker Desktop for your specific machine from https://www.docker.com/ 
+1.a) Ensure that "docker-compose" is included with your Docker Desktop instalation. If it isn't download it for your respective OS from https://docs.docker.com/compose/install/
 2) Run Docker Desktop.
 3) Open the terminal in team097final directory, then cd to CODE directory.
 	cd CODE directory
