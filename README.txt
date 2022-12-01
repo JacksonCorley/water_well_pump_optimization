@@ -28,7 +28,6 @@ Folder structure of CODE directory with file description:
 	--Final_Data_hourly_clean.csv	 -> Finalized dataset
 	--forecast.py			 -> Timeseries model for forecasting
 	--optimization.py		 -> Determines optimal pump selection based power usage constrained by total flow. 
-	--readme.md			     -> Markdown readme file for github
 	--README.txt			 -> this file
 	--requirements.txt		 -> List of all the python packages being used in the project
 	--Well_Summarys.csv		 -> List of all the pumps, their location, and their specs
@@ -53,7 +52,7 @@ Breakdown of UI:
    The section shows a line graph of south section including historical data and forecast data for both Flow and Cumulative power usage for the selected date range.
 
 6) Well Operations Map:
-   This section shows the pump location and optmiized pump selection based the hour chosen.
+   This section shows the pump location and optmiized pump selection based on the hour chosen.
 
 7) North Well Operations Table:
    This section shows the north well active pumps their average flow and average power usage based on the hour chosen.
