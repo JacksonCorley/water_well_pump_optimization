@@ -9,7 +9,7 @@ INSTALLATION :
 1) Download Docker Desktop for your specific machine from https://www.docker.com/ 
 2) Run Docker Desktop.
 3) Open the terminal in team097final directory, then cd to CODE directory.
-	cd CODE
+	cd CODE directory
 
 EXECUTION :
 1) Once inside CODE directory, run the following command to run the application: 
