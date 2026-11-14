@@ -1,17 +1,12 @@
-numpy
-pandas==1.2.4
-scipy
-scikit-learn
-statsmodels
-dash
-cvxpy
-plotly
-gunicorn
-flask
-dash-bootstrap-components
-dash-core-components
-dash-html-components
-dash-renderer
-dash-table
-cvxopt
-prophet
+# Runtime dependencies, pinned to the versions the test suite ran on (Python 3.13).
+numpy==2.5.4
+pandas==3.1.1
+scipy==1.18.1                 # MILP solver (HiGHS)
+scikit-learn==1.9.1           # quantile gradient boosting
+joblib==1.6.0                 # saved demand models
+threadpoolctl==3.8.0
+requests==2.34.2              # PI Web API, NWS weather, alert webhooks
+dash==4.5.0
+dash-bootstrap-components==2.0.4
+plotly==7.1.0
+gunicorn==23.0.0; sys_platform != "win32"   # production web server (Docker); use `python app.py` on Windows

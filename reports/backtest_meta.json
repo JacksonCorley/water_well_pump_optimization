@@ -1,0 +1,55 @@
+{
+  "generated": "2026-11-14T00:45:29",
+  "start": "2019-06-01 00:00:00",
+  "end": "2019-07-01 00:00:00",
+  "replan_every_hours": 6,
+  "horizon_hours": 48,
+  "policies": [
+    "historical",
+    "legacy_hourly",
+    "rule_naive",
+    "rule_gbm",
+    "milp_naive",
+    "milp_gbm",
+    "milp_perfect"
+  ],
+  "sections": [
+    "North",
+    "South"
+  ],
+  "labels": {
+    "historical": "Historical operation",
+    "legacy_hourly": "Original method (hourly cheapest set, hindsight)",
+    "rule_naive": "Storage-aware rule, naive forecast",
+    "rule_gbm": "Storage-aware rule, GBM forecast",
+    "milp_naive": "MILP scheduler, naive forecast",
+    "milp_gbm": "MILP scheduler, GBM forecast",
+    "milp_perfect": "MILP scheduler, perfect forecast (bound)"
+  },
+  "power_model": "recorded",
+  "storage": {
+    "North": {
+      "usable_mg": 3.5,
+      "min_mg": 1.05,
+      "floor_mg": 0.35000000000000003,
+      "max_mg": 3.3249999999999997,
+      "initial_mg": 2.1
+    },
+    "South": {
+      "usable_mg": 3.2,
+      "min_mg": 0.96,
+      "floor_mg": 0.32000000000000006,
+      "max_mg": 3.04,
+      "initial_mg": 1.92
+    }
+  },
+  "assumptions": [
+    "North usable storage 3.50 MG (min 30%, floor 10%, max 95%). No tank telemetry in the export, so demand = production and storage is simulated.",
+    "South usable storage 3.20 MG (min 30%, floor 10%, max 95%). No tank telemetry in the export, so demand = production and storage is simulated.",
+    "Tariff: 0.070 $/kWh off-peak, 0.140 $/kWh on-peak 14:00-20:00 weekdays, demand charge 12.00 $/kW-month, one meter per pump.",
+    "Pump rules: min up 4 h, min down 2 h, max 2 starts per pump per day, $10 per start.",
+    "Power model for planning: recorded kW (physics model assumes 70% wire-to-water efficiency).",
+    "Timestamps are local wall clock (America/Chicago); the spring daylight-saving hour is missing.",
+    "Out of service: PMP_5, PMP_20, PMP_26. Must run: none."
+  ]
+}

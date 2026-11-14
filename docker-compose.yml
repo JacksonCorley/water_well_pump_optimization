@@ -1,9 +1,53 @@
-version: '3'
+# Dashboard, advisory planner and one-off report commands, sharing one image and three volumes.
+#
+#   docker compose up --build                          dashboard on http://localhost:8000
+#   docker compose run --rm tasks plan                 plan from the end of the history
+#   docker compose run --rm tasks backtest --days 7    re-run a shorter policy backtest
+#   docker compose --profile live up -d                dashboard plus the planner loop
+#
+# The planner replays the CSV export by default. To read a PI historian instead, set
+# WELLOPT_SOURCE=pi, WELLOPT_PI_USER and WELLOPT_PI_PASSWORD in a .env file next to this one,
+# and fill in config/pi_tags.csv and [live] pi_base_url (see docs/LIVE_DEPLOYMENT.md).
+
+x-wellopt: &wellopt
+  build: .
+  image: wellopt:latest
+  environment:
+    WELLOPT_CONFIG: /app/config/site.toml
+  volumes:
+    - ./config:/app/config:ro   # edit config/site.toml without rebuilding
+    - wellopt-var:/app/var
+    - wellopt-models:/app/models
+    - wellopt-reports:/app/reports
+
 services:
-  # main application
-  myapp:
-    container_name: myapp
-    build:
-      .
+  app:
+    <<: *wellopt
     ports:
       - "8000:8000"
+    restart: unless-stopped
+
+  planner:
+    <<: *wellopt
+    profiles: ["live"]
+    command: ["python", "-m", "wellopt", "live", "--source", "${WELLOPT_SOURCE:-csv}"]
+    environment:
+      WELLOPT_CONFIG: /app/config/site.toml
+      WELLOPT_PI_USER: ${WELLOPT_PI_USER:-}
+      WELLOPT_PI_PASSWORD: ${WELLOPT_PI_PASSWORD:-}
+    restart: on-failure   # a CSV replay exits when the data ends; the PI loop runs until stopped
+    healthcheck:
+      disable: true
+
+  tasks:
+    <<: *wellopt
+    profiles: ["tasks"]
+    entrypoint: ["python", "-m", "wellopt"]
+    command: ["--help"]
+    healthcheck:
+      disable: true
+
+volumes:
+  wellopt-var:
+  wellopt-models:
+  wellopt-reports:
