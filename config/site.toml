@@ -1,0 +1,115 @@
+# Site configuration for the well-pump scheduler (wellopt).
+#
+# Values marked ASSUMPTION are placeholders that let the code run on the repo's
+# historical data. Replace them with the utility's real numbers before trusting
+# any cost or savings figure.
+
+[site]
+name = "Well system (historical replay)"
+# The historical CSV timestamps are US local wall-clock time with daylight saving
+# (02:00 is missing every March). ASSUMPTION: set this to the utility's time zone.
+timezone = "America/Chicago"
+pump_specs = "Well_Summarys.csv"
+history_csv = "Final_Data_hourly.csv"
+
+[power_model]
+# "recorded": kW and gpm per pump from the hourly data (mean over running hours).
+# "physics":  kW from flow, discharge pressure and well lift at the efficiency below.
+# The recorded kW fails a physics check (see reports/data_audit.md), so treat kWh
+# and $ from either source as indicative until they are reconciled with bills.
+source = "recorded"
+assumed_wire_to_water_efficiency = 0.70
+
+[storage.North]
+# ASSUMPTION: usable tank volume serving the section, in million gallons (MG).
+# The export has no tank data. These defaults are ~20% of average daily production
+# (North 17.7 MG/day, South 16.0 MG/day), a common sizing for the storage that
+# smooths daily demand swings. Replace them with the real usable volumes.
+usable_mg = 3.5
+min_frac = 0.30      # reserve: the high-demand path stays above this (soft) over the risk horizon
+floor_frac = 0.10    # hard-ish floor for the high-demand path (much heavier penalty)
+max_frac = 0.95      # the expected (P50) path stays below this to avoid overflow
+initial_frac = 0.60  # starting level when there is no tank telemetry
+end_frac = 0.55      # end-of-horizon target so plans don't borrow from tomorrow
+
+[storage.South]
+usable_mg = 3.2
+min_frac = 0.30
+floor_frac = 0.10
+max_frac = 0.95
+initial_frac = 0.60
+end_frac = 0.55
+
+[operations]
+horizon_hours = 48
+min_up_hours = 4          # ASSUMPTION: confirm with operations and motor specs
+min_down_hours = 2
+max_starts_per_day = 2    # per pump
+start_cost_usd = 10.0     # wear proxy charged for every pump start
+risk_horizon_hours = 6    # storage must survive the high-demand band this far ahead; the plan is redone every hour
+replan_every_hours = 1    # live runner cadence (backtests may use a coarser value to save time)
+solver_time_limit_s = 20
+mip_gap = 0.005
+stage_hours = 6           # relax-and-fix: fix on/off decisions 6 h at a time (0 = solve the whole horizon at once)
+# Penalties for breaking storage limits ($ per MG). They dwarf energy cost on purpose.
+penalty_below_min_usd_per_mg = 20000
+penalty_below_floor_usd_per_mg = 100000
+penalty_above_max_usd_per_mg = 5000
+penalty_end_usd_per_mg = 10000
+
+[tariff]
+# ASSUMPTION: example time-of-use schedule. Replace with the utility's rate.
+off_peak_usd_per_kwh = 0.07
+on_peak_usd_per_kwh = 0.14
+on_peak_start_hour = 14   # on-peak hours are [start, end) local time
+on_peak_end_hour = 20
+on_peak_weekdays_only = true
+demand_charge_usd_per_kw_month = 12.0
+demand_charge_on_peak_only = false
+
+[pumps]
+out_of_service = ["PMP_5", "PMP_20", "PMP_26"]
+# Pumps that must run whatever the cost (pressure zone, water quality, permits).
+# Historically PMP_4 ran 63% of hours despite using ~2.7x the energy per gallon of
+# the next-worst South pump. Add it here if operations confirms it is required.
+must_run = []
+
+[meters]
+# Optional: pumps that share one electric meter. Demand charges apply to each
+# meter's combined peak. By default every pump is its own meter.
+# SITE_S2 = ["PMP_4", "PMP_7"]
+
+[groups]
+# Optional header or plant limits per pump group, in gpm.
+# S2 = { max_gpm = 4000 }
+
+[forecast]
+quantiles = [0.1, 0.5, 0.9]
+origin_every_hours = 5    # 5 is coprime with 24, so training origins cover every hour
+max_iter = 300
+learning_rate = 0.05
+calib_days = 56            # held-out window used to recalibrate the quantiles (split conformal)
+target = "absolute"        # or "ratio" (better average error here, but missed a June surge by more; METHODOLOGY section 5)
+
+[live]
+store_path = "var/wellopt.sqlite"
+models_dir = "models"
+reports_dir = "reports"
+lookback_days = 730         # history loaded each cycle (QC, pump table, forecaster training)
+retrain_every_days = 28     # retrain the demand model when it is older than this
+stale_after_minutes = 120   # no pump telemetry for this long -> alert, plan not updated
+plan_retention_days = 365   # older plans are deleted (about 50 KB per hourly cycle); 0 keeps everything
+alert_webhook = ""          # optional URL that receives alert JSON (works with Slack/Teams incoming webhooks)
+
+# Optional NWS hourly forecast (US only), shown next to the plan. The models do not use it yet.
+weather_enabled = false
+weather_lat = 0.0
+weather_lon = 0.0
+weather_user_agent = "wellopt"  # NWS asks for an app name and a contact address, e.g. "wellopt (ops@your-utility.example)"
+
+# PI Web API historian (python -m wellopt live --source pi). Read-only.
+# Credentials come from the WELLOPT_PI_USER / WELLOPT_PI_PASSWORD environment variables.
+pi_base_url = ""            # e.g. "https://pi.your-utility.example/piwebapi"
+pi_tag_map = "config/pi_tags.csv"   # copy config/pi_tags.example.csv and fill in the PI point paths
+pi_verify_tls = true
+pi_ca_bundle = ""           # path to the utility's CA certificate bundle, if it uses a private CA

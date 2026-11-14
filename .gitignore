@@ -1,1 +1,18 @@
-.ipynb_checkpoints
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Runtime state: the plan store and trained demand models
+var/
+models/
+*.tmp
+
+# Site-specific settings and secrets
+.env
+config/pi_tags.csv

@@ -1,3 +1,166 @@
-.Select-menu-outer {
-  display: block !important;
+/* Well pump scheduler dashboard.
+   Tokens match the chart palette in wellopt/dashboard.py; dark mode has its own steps, not an inversion.
+   The page sets data-theme / data-bs-theme on <html> from the theme picker (system, light, dark). */
+:root {
+  color-scheme: light;
+  --wo-page: #f9f9f7;
+  --wo-surface: #fcfcfb;
+  --wo-ink: #0b0b0b;
+  --wo-ink2: #52514e;
+  --wo-muted: #898781;
+  --wo-grid: #e1e0d9;
+  --wo-baseline: #c3c2b7;
+  --wo-border: rgba(11, 11, 11, 0.10);
+  --wo-accent: #2a78d6;
+  --wo-code: #f0efec;
 }
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --wo-page: #0d0d0d;
+    --wo-surface: #1a1a19;
+    --wo-ink: #f0efec;
+    --wo-ink2: #c3c2b7;
+    --wo-muted: #898781;
+    --wo-grid: #2c2c2a;
+    --wo-baseline: #383835;
+    --wo-border: rgba(255, 255, 255, 0.10);
+    --wo-accent: #3987e5;
+    --wo-code: #2c2c2a;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --wo-page: #0d0d0d;
+  --wo-surface: #1a1a19;
+  --wo-ink: #f0efec;
+  --wo-ink2: #c3c2b7;
+  --wo-muted: #898781;
+  --wo-grid: #2c2c2a;
+  --wo-baseline: #383835;
+  --wo-border: rgba(255, 255, 255, 0.10);
+  --wo-accent: #3987e5;
+  --wo-code: #2c2c2a;
+}
+
+/* Bootstrap reads its own variables; point them at ours in both modes. */
+:root, [data-bs-theme="light"], [data-bs-theme="dark"] {
+  --bs-body-bg: var(--wo-page);
+  --bs-body-color: var(--wo-ink);
+  --bs-body-font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --bs-secondary-color: var(--wo-ink2);
+  --bs-border-color: var(--wo-grid);
+  --bs-tertiary-bg: var(--wo-surface);
+}
+
+/* Dash 4's own components (the pump picker dropdown) read these; their defaults are a light theme,
+   which left the dropdown white with light text in dark mode. :root:root outranks Dash's :root rule. */
+:root:root {
+  --Dash-Fill-Inverse-Strong: var(--wo-surface);
+  --Dash-Text-Primary: var(--wo-ink);
+  --Dash-Text-Strong: var(--wo-ink);
+  --Dash-Text-Weak: var(--wo-ink2);
+  --Dash-Text-Disabled: var(--wo-muted);
+  --Dash-Stroke-Strong: var(--wo-baseline);
+  --Dash-Stroke-Weak: var(--wo-grid);
+  --Dash-Fill-Interactive-Strong: var(--wo-accent);
+  --Dash-Fill-Interactive-Weak: color-mix(in srgb, var(--wo-accent) 12%, transparent);
+  --Dash-Fill-Primary-Hover: color-mix(in srgb, var(--wo-ink) 6%, transparent);
+  --Dash-Fill-Primary-Active: color-mix(in srgb, var(--wo-ink) 10%, transparent);
+  --Dash-Fill-Disabled: var(--wo-grid);
+}
+
+body {
+  background: var(--wo-page);
+  color: var(--wo-ink);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.wo-page { max-width: 1440px; margin: 0 auto; padding: 16px; }
+
+.wo-header {
+  display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.wo-header h1 { font-size: 20px; font-weight: 650; margin: 0 0 2px; color: var(--wo-ink); }
+.wo-header-right { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.wo-theme { width: auto; }
+
+.wo-tabs { margin-bottom: 16px; border-bottom-color: var(--wo-grid); }
+.wo-tabs .nav-link { color: var(--wo-ink2); }
+.wo-tabs .nav-link.active {
+  color: var(--wo-ink); background: var(--wo-surface);
+  border-color: var(--wo-grid) var(--wo-grid) var(--wo-surface);
+}
+
+.wo-card {
+  background: var(--wo-surface); border: 1px solid var(--wo-border); border-radius: 10px;
+  padding: 16px; margin-bottom: 16px; min-width: 0;
+}
+.wo-card h2 { font-size: 15px; font-weight: 600; margin: 0 0 4px; color: var(--wo-ink); }
+.wo-sub { font-size: 13px; color: var(--wo-ink2); margin: 0 0 8px; }
+
+.wo-grid-2, .wo-grid-2-1 { display: grid; gap: 16px; margin-bottom: 16px; }
+.wo-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.wo-grid-2-1 { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+.wo-grid-2 > .wo-card, .wo-grid-2-1 > .wo-card { margin-bottom: 0; }
+@media (max-width: 991px) {
+  .wo-grid-2, .wo-grid-2-1 { grid-template-columns: minmax(0, 1fr); }
+}
+
+.wo-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 12px 0; }
+.wo-tile { border-top: 1px solid var(--wo-grid); padding-top: 8px; min-width: 0; }
+.wo-tile-value { font-size: 26px; font-weight: 600; line-height: 1.2; color: var(--wo-ink); }
+.wo-tile-label { font-size: 13px; color: var(--wo-ink2); }
+.wo-tile-sub { font-size: 12px; color: var(--wo-muted); margin-top: 4px; }
+
+.wo-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.wo-badge {
+  display: inline-flex; align-items: center; gap: 6px; padding: 1px 10px;
+  border: 1px solid var(--wo-border); border-radius: 999px; background: var(--wo-surface);
+  font-size: 13px; color: var(--wo-ink); white-space: nowrap;
+}
+.wo-icon { font-weight: 700; font-size: 12px; }
+.wo-pill {
+  padding: 2px 10px; border: 1px solid var(--wo-border); border-radius: 999px;
+  font-size: 12px; color: var(--wo-ink2);
+}
+
+.wo-toolbar {
+  display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;
+  margin: 4px 0 12px;
+}
+.wo-section-pick .form-check-label { font-weight: 600; }
+.wo-buttons { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 8px; }
+.wo-error { margin-top: 8px; font-size: 13px; color: var(--wo-ink); }
+
+.wo-table-wrap { overflow: auto; }
+.wo-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.wo-table th {
+  position: sticky; top: 0; z-index: 1; background: var(--wo-surface); color: var(--wo-ink2);
+  font-weight: 600; text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--wo-baseline);
+  white-space: nowrap;
+}
+.wo-table td {
+  text-align: right; padding: 5px 8px; border-bottom: 1px solid var(--wo-grid); color: var(--wo-ink);
+  white-space: nowrap;
+}
+.wo-table .l { text-align: left; }
+
+.wo-details summary { cursor: pointer; color: var(--wo-ink2); font-size: 13px; margin: 8px 0; }
+
+.wo-alerts { list-style: none; padding: 0; margin: 8px 0 0; }
+.wo-alert {
+  display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 8px 0;
+  border-bottom: 1px solid var(--wo-grid);
+}
+.wo-alert-msg { flex: 1 1 320px; color: var(--wo-ink); }
+
+.wo-notes { padding-left: 18px; margin: 8px 0; }
+.wo-md { font-size: 14px; color: var(--wo-ink); }
+.wo-md ul { padding-left: 18px; margin: 8px 0 0; }
+.wo-md li { margin: 4px 0; }
+.wo-notes li { margin: 4px 0; }
+
+.wo-card code { background: var(--wo-code); color: var(--wo-ink); padding: 1px 5px; border-radius: 4px; }
+.wo-card p:last-child { margin-bottom: 0; }
