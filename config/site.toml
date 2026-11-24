@@ -73,6 +73,16 @@ out_of_service = ["PMP_5", "PMP_20", "PMP_26"]
 # Historically PMP_4 ran 63% of hours despite using ~2.7x the energy per gallon of
 # the next-worst South pump. Add it here if operations confirms it is required.
 must_run = []
+# Pumps marked out of service on the ops page are kept in the plan store, not here.
+
+[pump_curves]
+# Maker pump curves for the ops page (python ops_app.py). Fill in config/pump_curves.csv from the
+# manufacturer's curves or pump tests; docs/OPS_PAGE.md describes the format.
+path = "config/pump_curves.csv"
+por_low_pct = 70            # preferred operating region, as % of best-efficiency flow
+por_high_pct = 120
+head_off_curve_pct = 10     # flag head this far off the maker curve (wear, or a stale static level)
+fit_min_r2 = 0.45           # draw a curve fitted to SCADA only if head falls with flow and it fits this well
 
 [meters]
 # Optional: pumps that share one electric meter. Demand charges apply to each

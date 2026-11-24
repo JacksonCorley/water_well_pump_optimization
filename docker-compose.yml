@@ -1,6 +1,6 @@
-# Dashboard, advisory planner and one-off report commands, sharing one image and three volumes.
+# Dashboard, operations page, advisory planner and one-off report commands, sharing one image and three volumes.
 #
-#   docker compose up --build                          dashboard on http://localhost:8000
+#   docker compose up --build                          dashboard on http://localhost:8000, ops page on :8001
 #   docker compose run --rm tasks plan                 plan from the end of the history
 #   docker compose run --rm tasks backtest --days 7    re-run a shorter policy backtest
 #   docker compose --profile live up -d                dashboard plus the planner loop
@@ -26,6 +26,19 @@ services:
     ports:
       - "8000:8000"
     restart: unless-stopped
+
+  ops:
+    <<: *wellopt
+    command: ["gunicorn", "ops_app:server", "--bind", "0.0.0.0:8001", "--workers", "1", "--threads", "4", "--timeout", "120"]
+    ports:
+      - "8001:8001"
+    restart: unless-stopped
+    healthcheck:   # the image's own check calls the dashboard's port
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
 
   planner:
     <<: *wellopt

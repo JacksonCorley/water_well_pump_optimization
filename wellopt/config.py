@@ -102,6 +102,16 @@ class LiveConfig:
 
 
 @dataclass(frozen=True)
+class CurvesConfig:
+    """[pump_curves]: maker pump curves and the operating checks on the ops page."""
+    path: str = "config/pump_curves.csv"
+    por_low_pct: float = 70.0            # preferred operating region, as % of best-efficiency flow
+    por_high_pct: float = 120.0
+    head_off_curve_pct: float = 10.0     # flag head this far above or below the maker curve
+    fit_min_r2: float = 0.45             # show a curve fitted to SCADA only if it falls with flow and fits this well
+
+
+@dataclass(frozen=True)
 class SiteConfig:
     name: str
     timezone: str
@@ -119,6 +129,7 @@ class SiteConfig:
     meters: dict[str, tuple[str, ...]] = field(default_factory=dict)
     groups: dict[str, dict[str, float]] = field(default_factory=dict)
     root: Path = REPO_ROOT
+    curves: CurvesConfig = field(default_factory=CurvesConfig)
 
     def path(self, relative: str | Path) -> Path:
         """Resolve a path from the config relative to the repo root."""
@@ -160,6 +171,8 @@ def load_config(path: str | Path | None = None) -> SiteConfig:
     if forecast.target not in ("absolute", "ratio"):
         raise ValueError(f"[forecast] target must be 'absolute' or 'ratio', not {forecast.target!r}")
     live = LiveConfig(**{k: v for k, v in _section(raw, "live").items() if hasattr(LiveConfig, k)})
+    curves = CurvesConfig(**{k: type(getattr(CurvesConfig, k))(v) for k, v in _section(raw, "pump_curves").items()
+                             if hasattr(CurvesConfig, k)})
 
     pumps = _section(raw, "pumps")
     meters = {m: tuple(p) for m, p in _section(raw, "meters").items()}
@@ -183,6 +196,7 @@ def load_config(path: str | Path | None = None) -> SiteConfig:
         meters=meters,
         groups=groups,
         root=root,
+        curves=curves,
     )
 
 

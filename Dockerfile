@@ -1,4 +1,4 @@
-# One image for the dashboard, the advisory planner and the report commands.
+# One image for the dashboard, the operations page, the advisory planner and the report commands.
 # See docker-compose.yml for how they are run together.
 FROM python:3.13-slim
 
@@ -16,7 +16,7 @@ COPY wellopt ./wellopt
 COPY config ./config
 COPY assets ./assets
 COPY reports ./reports
-COPY app.py Well_Summarys.csv Final_Data_hourly.csv ./
+COPY app.py ops_app.py Well_Summarys.csv Final_Data_hourly.csv ./
 
 # Run as an unprivileged user. var/ (plan store), models/ and reports/ are the only
 # places the app writes; docker-compose.yml mounts volumes there.

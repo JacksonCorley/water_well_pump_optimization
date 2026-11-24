@@ -81,14 +81,20 @@ Start the dashboard on http://127.0.0.1:8050:
 python app.py
 ```
 
+Start the operations page on http://127.0.0.1:8051:
+
+```bash
+python ops_app.py
+```
+
 ### With Docker
 
 ```bash
 docker compose up --build
 ```
 
-The dashboard is on http://localhost:8000 and shows the committed backtest and audit reports. To add a
-plan:
+The dashboard is on http://localhost:8000 and shows the committed backtest and audit reports. The
+operations page is on http://localhost:8001 and needs a plan. To add one:
 
 ```bash
 docker compose run --rm tasks plan
@@ -123,6 +129,17 @@ Every command takes `--help`.
 
 Every chart has a table view.
 
+## Operations page
+
+`python ops_app.py` is one screen for the operator on shift, in a control-room style: grayscale, with
+color only for what needs doing and what needs a look. It lists what
+the newest plan says to do with each pump this hour (turn on, turn off, keep running, leave off), and
+charts where the chosen pump runs on its pump curve: its reading now, its usual range from the history
+and, once `config/pump_curves.csv` holds the maker's curves, the curve, best efficiency point and
+preferred range. A pump marked out of service there is left out of a new plan at once, and of every
+later plan until it is returned to service. [docs/OPS_PAGE.md](docs/OPS_PAGE.md) covers the page, the
+curve file and the page's limits.
+
 ## Configuration
 
 Everything site-specific lives in [`config/site.toml`](config/site.toml): tank volumes and limits,
@@ -149,6 +166,7 @@ python -m pytest
 | Path | Contents |
 |---|---|
 | `app.py` | Dashboard entry point (`python app.py`, or `gunicorn app:server`) |
+| `ops_app.py` | Operations page entry point (`python ops_app.py`, or `gunicorn ops_app:server`) |
 | `wellopt/data.py` | Load the SCADA export; quality control |
 | `wellopt/pumps.py` | Pump flow and power models; the physics check |
 | `wellopt/tariff.py` | Time-of-use energy and demand charges |
@@ -156,10 +174,11 @@ python -m pytest
 | `wellopt/milp.py`, `wellopt/scheduler.py` | The MILP, the rule-based fallback, and plans with notes |
 | `wellopt/backtest.py`, `wellopt/reporting.py`, `wellopt/diagnostics.py` | Backtest and reports |
 | `wellopt/dashboard.py`, `assets/style.css` | The Dash app |
+| `wellopt/curves.py`, `wellopt/ops_view.py`, `wellopt/ops_page.py`, `wellopt/ops_static/` | Pump curves and operating checks; the operations page (a Flask app serving a plain HTML, CSS and JavaScript page) |
 | `wellopt/live/` | Planner loop, data sources (CSV replay, PI Web API), SQLite store, saved models, weather |
-| `config/` | Site config and an example PI tag map |
+| `config/` | Site config, the maker pump curves (`pump_curves.csv`) and an example PI tag map |
 | `reports/` | Generated reports, committed so the results are visible |
-| `docs/` | Methodology and deployment notes |
+| `docs/` | Methodology, deployment and operations page notes |
 | `tests/` | pytest suite |
 | `legacy/` | The 2022 scripts |
 | `Final_Data_hourly.csv` | Hourly SCADA export, July 2016 to July 2019 |

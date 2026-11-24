@@ -1,8 +1,12 @@
-"""SQLite store shared by the live runner (the only writer) and the app (readers).
+"""SQLite store shared by the live runner, the ops page and the dashboard.
+
+The runner writes runs, plans, alerts and the historian cache. The ops page writes only
+pump marks (out of service) and the re-plan it makes when a mark changes; the dashboard
+only reads (and acknowledges alerts).
 
 Tables: runs (one row per planning cycle), plans (one row per section per run),
-alerts, hourly (cached historian rows) and weather. WAL mode lets the app read
-while the runner writes.
+alerts, hourly (cached historian rows), weather and pump_marks. WAL mode lets the
+apps read while the runner writes.
 """
 from __future__ import annotations
 
@@ -60,6 +64,13 @@ CREATE TABLE IF NOT EXISTS weather (
     temp_f REAL,
     precip_prob REAL,
     fetched_at TEXT
+);
+CREATE TABLE IF NOT EXISTS pump_marks (
+    pump TEXT PRIMARY KEY,
+    out_of_service INTEGER NOT NULL, -- 1 = leave it out of every plan until it is returned to service
+    note TEXT,
+    updated_at TEXT NOT NULL,
+    updated_by TEXT
 );
 """
 
@@ -245,6 +256,23 @@ class PlanStore:
         with self._connect() as con:
             row = con.execute("SELECT MAX(time) AS t FROM hourly").fetchone()
         return pd.Timestamp(row["t"]) if row and row["t"] else None
+
+    # ------------------------------------------------------------ pump marks
+    def set_out_of_service(self, pump: str, out_of_service: bool = True, note: str = "", by: str = "") -> None:
+        """Mark a pump out of service (or return it to service). Planning runs leave marked pumps out."""
+        with self._connect() as con:
+            con.execute("INSERT INTO pump_marks(pump, out_of_service, note, updated_at, updated_by) "
+                        "VALUES (?, ?, ?, ?, ?) ON CONFLICT(pump) DO UPDATE SET "
+                        "out_of_service=excluded.out_of_service, note=excluded.note, "
+                        "updated_at=excluded.updated_at, updated_by=excluded.updated_by",
+                        (str(pump), int(bool(out_of_service)), note or "", _now(), by or ""))
+
+    def out_of_service(self) -> dict[str, dict]:
+        """Pumps currently marked out of service: pump -> {note, updated_at, updated_by}."""
+        with self._connect() as con:
+            rows = con.execute("SELECT * FROM pump_marks WHERE out_of_service=1 ORDER BY pump").fetchall()
+        return {r["pump"]: {"note": r["note"] or "", "updated_at": r["updated_at"], "updated_by": r["updated_by"] or ""}
+                for r in rows}
 
     # --------------------------------------------------------------- weather
     def save_weather(self, df: pd.DataFrame) -> None:

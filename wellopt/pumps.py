@@ -24,6 +24,17 @@ HP_PER_KW = 1 / 0.746
 WHP_DIVISOR = 3960.0  # gpm * ft / 3960 = water horsepower
 
 
+def total_dynamic_head(flow_gpm, press_psi, static_ft: float, specific_capacity_gpm_ft: float):
+    """Estimated total dynamic head (ft) a well pump works against: static water level, plus drawdown
+    (flow / specific capacity), plus discharge pressure. Column friction is ignored, and head is not
+    measured anywhere, so the result is only as good as the spec sheet's static level and specific capacity.
+
+    Works on scalars, numpy arrays and pandas Series; missing flow or pressure gives NaN."""
+    sc = float(specific_capacity_gpm_ft) if pd.notna(specific_capacity_gpm_ft) else 0.0
+    drawdown = flow_gpm / sc if sc > 0 else flow_gpm * 0.0
+    return float(static_ft) + drawdown + press_psi * FT_PER_PSI
+
+
 def _r2(y: np.ndarray, yhat: np.ndarray) -> float:
     ss = ((y - y.mean()) ** 2).sum()
     return float(1 - ((y - yhat) ** 2).sum() / ss) if ss > 0 else float("nan")
