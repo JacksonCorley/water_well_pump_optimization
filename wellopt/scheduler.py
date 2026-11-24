@@ -206,11 +206,14 @@ def plan_inputs(section: str, state: PlantState, table: pd.DataFrame) -> dict:
 
 
 def replan(plan: SectionPlan, cfg: SiteConfig, tariff: Tariff, *, storage_mg: float | None = None,
-           out_of_service=(), method: str = "milp", time_limit_s: float | None = 10.0) -> SectionPlan:
-    """Re-solve a stored plan with a different storage level or more pumps out of service (a what-if).
+           out_of_service=(), in_service=(), method: str = "milp", time_limit_s: float | None = 10.0) -> SectionPlan:
+    """Re-solve a stored plan with a different storage level or different pumps out of service (a what-if,
+    or the ops page after a pump is marked out of service or returned to service).
 
-    Uses only what the plan stored, so it gives the same answer wherever it runs. `time_limit_s` caps
-    each solver stage so an interactive request stays quick."""
+    `out_of_service` adds pumps to those the plan left out; `in_service` puts back pumps the plan left out
+    (pumps unavailable in the pump table, such as those with no data, stay out). Uses only what the plan
+    stored, so it gives the same answer wherever it runs. `time_limit_s` caps each solver stage so an
+    interactive request stays quick."""
     if not plan.inputs.get("pumps"):
         raise ValueError("this plan was stored without its inputs; make a new plan to run a what-if")
     st = plan.inputs["state"]
@@ -223,7 +226,8 @@ def replan(plan: SectionPlan, cfg: SiteConfig, tariff: Tariff, *, storage_mg: fl
                        on=pd.Series(st["on"], dtype=int), run_hours=pd.Series(st["run_hours"], dtype=int),
                        month_peak_kw=dict(st.get("month_peak_kw") or {}),
                        storage_measured=bool(st.get("storage_measured")) and storage_mg is None,
-                       unavailable=tuple(dict.fromkeys([*st.get("unavailable", []), *out_of_service])))
+                       unavailable=tuple(p for p in dict.fromkeys([*st.get("unavailable", []), *out_of_service])
+                                         if p not in set(in_service)))
     if time_limit_s:
         cfg = replace(cfg, ops=replace(cfg.ops, solver_time_limit_s=min(cfg.ops.solver_time_limit_s, time_limit_s)))
     return plan_section(sec, plan.forecast(), state, table, cfg, tariff, method=method)
@@ -241,6 +245,9 @@ def make_notes(state: PlantState, pr: ScheduleProblem, res: ScheduleResult, sche
     on0 = pd.Series(pr.on0, index=pr.pumps)
     starts = [p for p in pr.pumps if first[p] == 1 and on0[p] == 0]
     stops = [p for p in pr.pumps if first[p] == 0 and on0[p] == 1]
+    left_out = [p for p in state.unavailable if p in table.index and table.at[p, "section"] == summary["section"]]
+    # a pump taken out of service while it runs must be stopped too, though the problem no longer includes it
+    stops += [f"{p} (out of service)" for p in left_out if int(state.on.get(p, 0)) == 1]
     running = [p for p in pr.pumps if first[p] == 1]
     when = _fmt_t(schedule.index[0])
     if starts or stops:
@@ -256,7 +263,6 @@ def make_notes(state: PlantState, pr: ScheduleProblem, res: ScheduleResult, sche
                 changes.append(f"{'start' if v > 0 else 'stop'} {p} at {_fmt_t(t)}")
     if changes:
         notes.append("Next 12 h: " + "; ".join(changes[:8]) + ("; ..." if len(changes) > 8 else "") + ".")
-    left_out = [p for p in state.unavailable if p in table.index and table.at[p, "section"] == summary["section"]]
     if left_out:
         notes.append(f"Planned without {', '.join(left_out)} (out of service for this plan).")
 

@@ -136,16 +136,19 @@ def forecast_section(ctx, section: str, now, kind: str = "gbm", *, log=None, sav
 def make_plans(ctx, at=None, forecaster_kind: str = "gbm", method: str = "milp",
                storage_mg: dict[str, float] | None = None, store: PlanStore | None = None,
                sections=None, log=None, save_models: bool = True) -> dict[str, SectionPlan]:
-    """Plan each section from the hour `at` (default: the hour after the data ends)."""
+    """Plan each section from the hour `at` (default: the hour after the data ends).
+    Pumps marked out of service in the store (from the ops page) are left out."""
     at = pd.Timestamp(at).floor("h") if at is not None else ctx.qc.index.max() + H1
     sections = list(sections) if sections is not None else list(ctx.qc.production.columns)
     prev = store.latest_plans() if store is not None else {}
+    marked = tuple(store.out_of_service()) if store is not None else ()
     on_hist = ctx.qc.on.loc[: at - H1].ffill(limit=3)  # a reading that is a few hours late keeps its last state
     plans = {}
     for sec in sections:
         mg, measured, source = current_storage(ctx, sec, at, prev.get(sec), (storage_mg or {}).get(sec))
         fc, described, note = forecast_section(ctx, sec, at, forecaster_kind, log=log, save_models=save_models)
-        state = state_from_history(on_hist, ctx.table, ctx.tariff, at, {sec: mg}, storage_measured=measured)
+        state = state_from_history(on_hist, ctx.table, ctx.tariff, at, {sec: mg}, storage_measured=measured,
+                                   unavailable=marked)
         plan = plan_section(sec, fc, state, ctx.table, ctx.cfg, ctx.tariff, method=method)
         plan.summary.update({"forecaster": described, "storage_source": source,
                              "data_end": str(ctx.qc.index.max())})

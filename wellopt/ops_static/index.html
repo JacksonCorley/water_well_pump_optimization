@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Well Pump Operations Support</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23141a21'/%3E%3Cpath d='M6 9c9 0 15 3 20 14' fill='none' stroke='%23e8eef4' stroke-width='2.6' stroke-linecap='round'/%3E%3Ccircle cx='17' cy='12.6' r='4' fill='%2356b8dc'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="static/ops.css">
+<script src="static/ops.js" defer></script>
+</head>
+<body>
+<main class="page" id="app">
+  <header class="card head">
+    <div>
+      <h1>Well Pump Operations Support</h1>
+      <p class="sub muted">What the newest plan recommends for each pump this hour, and where each pump runs on its curve.</p>
+    </div>
+    <div class="tabs" id="tabs" role="tablist" aria-label="Section"></div>
+    <div class="head-ctl">
+      <button type="button" class="btn" id="refresh">Refresh</button>
+      <p class="muted" id="loaded">Loading the newest plan…</p>
+    </div>
+  </header>
+
+  <div class="panel" id="panel" role="tabpanel">
+    <section class="card status" id="status" hidden>
+      <h2 id="status-title"></h2>
+      <p id="status-text"></p>
+    </section>
+
+    <div class="stack" id="content" hidden>
+      <div class="metrics" id="metrics"></div>
+
+      <div class="work">
+        <section class="card" aria-labelledby="actions-title">
+          <h2 id="actions-title">Pump Actions</h2>
+          <p class="hint">Click a pump, or use ↑ and ↓, to see it on its curve.</p>
+          <div id="warnings"></div>
+          <div class="tablebox">
+            <table class="pumps" id="pumps">
+              <caption class="sr">Each pump's action for this hour, grouped. Pick a row to show the pump on its curve.</caption>
+              <thead><tr><th scope="col">Pump</th><th scope="col">Action</th><th scope="col" class="num">Flow (gpm)</th>
+                <th scope="col" class="num">Head (ft)</th><th scope="col" class="num">kWh/kgal</th><th scope="col">Check</th></tr></thead>
+            </table>
+          </div>
+        </section>
+
+        <section class="card" aria-labelledby="curve-title">
+          <h2 id="curve-title">Pump Curve</h2>
+          <p class="action" id="curve-action"></p>
+          <div class="chart">
+            <ul class="legend" id="legend" aria-label="Chart key"></ul>
+            <div class="plotwrap"><div class="plot" id="plot"></div><div class="tip" id="tip" hidden></div></div>
+          </div>
+          <ul class="notes-list" id="curve-notes"></ul>
+          <form class="oos-form" id="oos-form">
+            <label class="sr" for="oos-note" id="oos-label">Reason for marking it out of service</label>
+            <input class="field" id="oos-note" type="text" maxlength="200" autocomplete="off"
+                   placeholder="Reason for marking it out of service (optional)">
+            <button class="btn" id="oos-btn" type="submit">Mark out of service</button>
+          </form>
+          <p class="form-msg" id="oos-msg" role="status"></p>
+        </section>
+      </div>
+
+      <section class="card" aria-labelledby="notes-title">
+        <h2 id="notes-title">Planner Notes</h2>
+        <ul class="notes-list" id="plan-notes"></ul>
+      </section>
+    </div>
+  </div>
+  <noscript><p class="card">This page needs JavaScript to show the plan.</p></noscript>
+</main>
+<div class="toast" id="toast" role="status" hidden></div>
+</body>
+</html>

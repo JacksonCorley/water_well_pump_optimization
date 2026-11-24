@@ -3,9 +3,9 @@
 ## What "live" means here
 
 The live version is **advisory**. Every hour a planner reads the historian, checks the data, forecasts
-demand, plans the next 48 hours and stores the plan; the dashboard shows it, and alerts go to a webhook.
-Nothing writes to SCADA or to the historian (the PI adapter only makes GET requests). Operators decide
-what to run.
+demand, plans the next 48 hours and stores the plan. The dashboard and the operations page show it, and
+alerts go to a webhook. Nothing writes to SCADA or to the historian (the PI adapter only makes GET
+requests). Operators decide what to run.
 
 ```mermaid
 flowchart LR
@@ -14,6 +14,8 @@ flowchart LR
   P --> DB[("var/wellopt.sqlite")]
   P --> W["alert webhook"]
   DB --> D["dashboard<br/>gunicorn app:server"]
+  DB --> O["operations page<br/>gunicorn ops_app:server"]
+  O -.->|out-of-service marks| DB
 ```
 
 ## One planning cycle
@@ -68,14 +70,15 @@ WELLOPT_PI_USER=svc-wellopt
 WELLOPT_PI_PASSWORD=change-me
 ```
 
-Then start the dashboard and the planner:
+Then start the dashboard (port 8000), the operations page (port 8001) and the planner:
 
 ```bash
 docker compose --profile live up -d --build
 ```
 
-The two containers share the `var`, `models` and `reports` volumes. `config/` is mounted read-only from
-the checkout; both processes read it at startup, so restart them after editing it:
+The containers share the `var`, `models` and `reports` volumes. `config/` is mounted read-only from
+the checkout. They read `site.toml` at startup, so restart them after editing it (the operations page
+reads `pump_curves.csv` again by itself whenever it changes):
 
 ```bash
 docker compose --profile live restart
@@ -87,7 +90,8 @@ largest step.
 ## Without Docker
 
 Linux, with systemd (one unit for the planner; the dashboard is the same with
-`ExecStart=/opt/wellopt/.venv/bin/gunicorn app:server --bind 0.0.0.0:8000 --workers 1 --threads 4`):
+`ExecStart=/opt/wellopt/.venv/bin/gunicorn app:server --bind 0.0.0.0:8000 --workers 1 --threads 4`, and
+the operations page with `ExecStart=/opt/wellopt/.venv/bin/gunicorn ops_app:server --bind 0.0.0.0:8001 --workers 1 --threads 4`):
 
 ```ini
 [Unit]
@@ -107,8 +111,9 @@ WantedBy=multi-user.target
 
 Windows: run `python -m wellopt live --source pi` as a service (for example with NSSM or Task Scheduler
 at startup). gunicorn doesn't run on Windows; serve the dashboard with
-`waitress-serve --listen=0.0.0.0:8000 app:server` (`pip install waitress`). `python app.py` is fine
-for a single user.
+`waitress-serve --listen=0.0.0.0:8000 app:server` (`pip install waitress`), and the operations page
+with `waitress-serve --listen=0.0.0.0:8001 ops_app:server`. `python app.py` and `python ops_app.py` are
+fine for a single user.
 
 ## Dashboard settings
 
@@ -118,9 +123,13 @@ for a single user.
 | `HOST`, `PORT` | `127.0.0.1`, `8050` | Address for `python app.py` (gunicorn takes `--bind`). |
 | `WELLOPT_BOOTSTRAP_CSS` | Bootstrap from jsDelivr | Stylesheet URL. On a network without internet access, set it to `local` and put `bootstrap.min.css` in `assets/`, or `none`. |
 
-**The dashboard has no login.** Serve it on the plant network only, or behind the utility's reverse
-proxy with authentication and TLS. A what-if re-plan runs the optimizer on the server (up to about
-20 seconds of CPU per click) and is never saved.
+The operations page takes `OPS_PORT` (8051) instead of `PORT`. It needs no stylesheet setting: it serves
+its own files and loads nothing from the internet; see [OPS_PAGE.md](OPS_PAGE.md#running-it).
+
+**The dashboard and the operations page have no login.** Serve them on the plant network only, or
+behind the utility's reverse proxy with authentication and TLS. A what-if re-plan runs the optimizer on
+the server (up to about 20 seconds of CPU per click) and is never saved. On the operations page, anyone
+who can open it can mark a pump out of service, which is saved and changes the plans.
 
 ## Alerts
 
@@ -133,9 +142,11 @@ proxy with authentication and TLS. A what-if re-plan runs the optimizer on the s
 | `milp_fallback` | warning | The optimizer failed and the rule plan was used. |
 | `forecast_fallback` | warning | The demand model failed and the seasonal-naive forecast was used. |
 | `runner_error` | alert | A planning cycle failed; the next one still runs. |
+| `out_of_service:<pump>` | info | The pump was marked out of service, or returned to service, on the operations page. |
 
 An alert isn't raised again for the same section and key while an unacknowledged copy is less than
-6 hours old. Operators acknowledge alerts on the dashboard.
+6 hours old; `out_of_service` alerts are recorded every time. Operators acknowledge alerts on the
+dashboard.
 
 Set `[live] alert_webhook` to send new warnings and alerts as JSON:
 `{"text": ..., "site": ..., "alerts": [{"section", "level", "key", "message", "plan_time"}]}`. The `text`
@@ -151,8 +162,10 @@ contact address, for example `"wellopt (ops@your-utility.example)"`.
 
 ## The plan store
 
-`var/wellopt.sqlite` holds runs, plans, alerts, cached historian rows and weather, in WAL mode so the
-dashboard can read while the planner writes. The planner is the only writer.
+`var/wellopt.sqlite` holds runs, plans, alerts, cached historian rows, weather and out-of-service marks,
+in WAL mode so the pages can read while the planner writes. The planner writes almost everything. The
+dashboard records alert acknowledgements. The operations page records out-of-service marks, and saves
+the plan it redoes after each one ([OPS_PAGE.md](OPS_PAGE.md#out-of-service)).
 
 * Each hourly cycle adds about 50 KB (two sections). After every cycle, plans older than
   `plan_retention_days` (365; 0 keeps everything) are deleted, keeping the newest plan per section, and
@@ -170,7 +183,7 @@ dashboard can read while the planner writes. The planner is the only writer.
 | Demand model fails | Uses the seasonal-naive forecast. | `forecast_fallback` warning; the plan names its forecaster. |
 | MILP fails or runs out of time | Uses the rule plan, or the best schedule found. | `milp_fallback` warning, or a "Solver time limit" badge. |
 | A cycle crashes | Records the error and runs the next cycle. | `runner_error` alert. |
-| The planner process dies | Docker or systemd restarts it. | Plans stop updating; "Plan is … old" badge. |
+| The planner process dies | Docker or systemd restarts it. | Plans stop updating; "Plan is … old" badge, and the operations page's ▲ plan-age line. |
 
 ## Before anyone relies on it
 
